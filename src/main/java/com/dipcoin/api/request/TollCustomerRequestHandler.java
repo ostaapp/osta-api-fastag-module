@@ -1,0 +1,77 @@
+package com.dipcoin.api.request;
+
+import java.util.List;
+import java.util.Map;
+import javax.ws.rs.CookieParam;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.HttpHeaders;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import com.dipcoin.api.commons.APIConstants;
+import com.dipcoin.api.commons.APIDoc;
+import com.dipcoin.api.commons.APIException;
+import com.dipcoin.api.filter.HttpServletContext;
+import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.CustomerDipcoinResponse;
+import com.dipcoin.api.model.TollRechargeResponse;
+import com.dipcoin.api.resource.TollCustomerResource;
+import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
+import io.micrometer.core.annotation.Timed;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+
+@Api(value = "/v1/customer/toll")
+@RestController
+@RequestMapping(value = "/v1/customer/toll", consumes = { MediaType.APPLICATION_JSON_VALUE,
+		MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE }, produces = { MediaType.APPLICATION_JSON_VALUE,
+				MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE })
+@CrossOrigin
+@Timed
+public class TollCustomerRequestHandler {
+
+	@Autowired
+	private TollCustomerResource tollServicesResource;
+	
+	@Autowired
+	@Lazy
+	private HttpServletContext httpServletContext;
+
+	@GetMapping
+	@ApiOperation(value = "Getting the toll services Customer basis UserId | TagId", notes = "API to get all the Toll Customer basis of UserId | TagId.", response = TollRegistrationResponse.class)
+	@ApiResponses(value = { @ApiResponse(code = 400, message = "Bank Code Invalid", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Tag Id Invalid", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity getAllTollCustomerDetails(
+			@ApiParam(value = "list based on the Tag id for Vendor Login", required = false) @QueryParam(value = "tagId") final String tagId,
+			@ApiParam(value = "list based on the Status for Login", required = false) @QueryParam(value = "status") final String status,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.getTollCustomerDetails(httpServletContext.getUser(), status, tagId);
+	}
+
+}
