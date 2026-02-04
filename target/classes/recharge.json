@@ -1,0 +1,472 @@
+{
+	"VOD": [
+		{
+			"spcode": "VOD",
+			"sspcode": "VODAP"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODAS"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODBH"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODCH"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODDL"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODGJ"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODHP"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODHR"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODJK"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODKK"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODKO"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODKR"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODMH"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODMP"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODMU"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODNE"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODOR"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODPB"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODRJ"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODTN"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODUE"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODUW"
+		},
+		{
+			"spcode": "VOD",
+			"sspcode": "VODWB"
+		}
+	],
+	"ART": [
+		{
+			"spcode": "ART",
+			"sspcode": "ARTAP"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTAS"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTBH"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTCH"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTDL"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTGJ"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTHP"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTHR"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTJK"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTKK"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTKO"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTKR"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTMH"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTMP"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTMU"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTNE"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTOR"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTPB"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTRJ"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTTN"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTUE"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTUW"
+		},
+		{
+			"spcode": "ART",
+			"sspcode": "ARTWB"
+		}
+	],
+	"BSP": [
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPAP"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPAS"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPBH"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPCH"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPDL"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPGJ"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPHP"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPHR"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPJK"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPKK"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPKO"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPKR"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPMH"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPMP"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPMU"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPNE"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPOR"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPPB"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPRJ"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPTN"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPUE"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPUW"
+		},
+		{
+			"spcode": "BSP",
+			"sspcode": "BSPWB"
+		}
+	],
+	"JIO": [
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOAP"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOAS"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOBH"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOCH"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIODL"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOGJ"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOHP"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOHR"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOJK"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOKK"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOKO"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOKR"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOMH"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOMP"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOMU"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIONE"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOOR"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOPB"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIORJ"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOTN"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOUE"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOUW"
+		},
+		{
+			"spcode": "JIO",
+			"sspcode": "JIOWB"
+		}
+	],
+	"MTL": [
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLAP"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLAS"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLBH"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLCH"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLDL"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLGJ"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLHP"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLHR"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLJK"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLKK"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLKO"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLKR"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLMH"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLMP"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLMU"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLNE"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLOR"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLPB"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLRJ"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLTN"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLUE"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLUW"
+		},
+		{
+			"spcode": "MTL",
+			"sspcode": "MTLWB"
+		}
+	]
+}

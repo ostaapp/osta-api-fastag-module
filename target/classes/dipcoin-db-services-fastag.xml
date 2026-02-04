@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xsi:schemaLocation="
+            http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/aop
+            http://www.springframework.org/schema/aop/spring-aop.xsd
+            http://www.springframework.org/schema/tx
+            http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+            http://www.springframework.org/schema/jdbc
+            http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+            http://www.springframework.org/schema/task
+            http://www.springframework.org/schema/task/spring-task-3.0.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+<!-- Removed redundant component scan as it's handled by FastagApiApplication -->
+<!-- <context:component-scan base-package="com.dipcoin" /> -->
+
+	<bean
+		class="org.springframework.dao.annotation.PersistenceExceptionTranslationPostProcessor" />
+
+	<bean
+		class="org.springframework.orm.jpa.support.PersistenceAnnotationBeanPostProcessor" />
+
+	<bean id="coreUtils" class="com.dipcoin.commons.CoreUtils"/>
+
+	<bean id="transactionManager" primary="true"
+		class="org.springframework.orm.jpa.JpaTransactionManager"
+		p:entityManagerFactory-ref="com.dipcoin.db.services.beans:EntityManagerFactory" />
+
+	<tx:annotation-driven
+		transaction-manager="transactionManager" />
+
+	<bean id="dbConfig"
+		class="com.dipcoin.db.services.commons.DBConfig">
+		<property name="configFile" value="classpath:config.json" />
+	</bean>
+
+	<beans profile="!unit">
+		<bean
+			class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+			<property name="locations"
+				value="classpath:dipcoin-db-services-${spring.profiles.active}.properties" />
+			<property name="ignoreUnresolvablePlaceholders" value="true" />
+		</bean>
+
+		<bean id="com.dipcoin.db.services.beans:EntityManagerFactory"
+			class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean"
+			primary="true"
+			p:dataSource-ref="dataSource"
+			p:persistenceXmlLocation="classpath*:META-INF/persistence.xml"
+			p:persistenceUnitName="fastagJpaPersistenceUnit" />
+
+		<!-- Create an alias for EntityManagerFactory with the persistence unit name -->
+		<alias name="com.dipcoin.db.services.beans:EntityManagerFactory" alias="springJpaPersistenceUnit" />
+
+		<beans profile="dev">
+			<bean id="dataSource"
+				class="com.mchange.v2.c3p0.ComboPooledDataSource"
+				destroy-method="close">
+				<property name="driverClass"
+					value="com.mysql.cj.jdbc.Driver" />
+				<property name="jdbcUrl"
+					value="jdbc:mysql://stage-db-new.cf2ik20ms4wt.ap-south-1.rds.amazonaws.com:3306/dipcoin?allowMultiQueries=true&amp;useSSL=false&amp;useUnicode=true&amp;useJDBCCompliantTimezoneShift=true&amp;useLegacyDatetimeCode=false&amp;serverTimezone=UTC&amp;allowPublicKeyRetrieval=true" />
+				<property name="user"
+					value="dipcoindb" />
+				<property name="password"
+					value="O5taD1pC0in" />
+
+				<property name="preferredTestQuery" value="SELECT 1" />
+			</bean>
+		</beans>
+
+		<!-- PRODUCTION Profile DataSource -->
+		<beans profile="prod">
+			<bean id="dataSource"
+				class="com.mchange.v2.c3p0.ComboPooledDataSource"
+				destroy-method="close">
+				<property name="driverClass"
+					value="com.mysql.cj.jdbc.Driver" />
+				<property name="jdbcUrl"
+					value="jdbc:mysql://prod.c16c0kguu832.ap-south-1.rds.amazonaws.com:3306/dipcoin?allowMultiQueries=true&amp;useSSL=false&amp;useUnicode=true&amp;useJDBCCompliantTimezoneShift=true&amp;useLegacyDatetimeCode=false&amp;serverTimezone=UTC&amp;allowPublicKeyRetrieval=true" />
+				<property name="user"
+					value="dipcoinuser" />
+				<property name="password"
+					value="Brontoo#2025!" />
+
+				<!-- pool sizing -->
+				<property name="initialPoolSize" value="10" />
+				<property name="minPoolSize" value="10" />
+				<property name="maxPoolSize" value="20" />
+				<property name="acquireIncrement" value="10" />
+				<property name="maxStatements" value="0" />
+				<!-- retries -->
+				<property name="acquireRetryAttempts" value="30" />
+				<property name="acquireRetryDelay" value="1000" />
+				<property name="breakAfterAcquireFailure" value="false" />
+				<!-- refreshing connections -->
+				<property name="maxIdleTime" value="180" />
+				<property name="maxConnectionAge" value="10" />
+				<!-- timeouts and testing -->
+				<property name="checkoutTimeout" value="30000" />
+				<property name="idleConnectionTestPeriod" value="60" />
+				<property name="testConnectionOnCheckout" value="true" />
+				<property name="preferredTestQuery" value="SELECT 1" />
+				<property name="testConnectionOnCheckin" value="true" />
+				<property name="unreturnedConnectionTimeout" value="40" />
+				<property name="numHelperThreads" value="3" />
+				<property name="debugUnreturnedConnectionStackTraces"
+					value="true" />
+			</bean>
+		</beans>
+	</beans>
+
+	<beans profile="unit">
+		<bean id="com.dipcoin.db.services.beans:EntityManagerFactory"
+			class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean"
+			p:dataSource-ref="dataSource"
+			p:persistenceXmlLocation="META-INF/persistence.xml"
+			p:persistenceUnitName="fastagJpaPersistenceUnit" />
+
+		<alias name="com.dipcoin.db.services.beans:EntityManagerFactory" alias="fastagJpaPersistenceUnit" />
+
+		<bean id="dataSource"
+			class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+			<property name="driverClass"
+				value="com.mysql.cj.jdbc.Driver" />
+			<property name="url"
+				value="jdbc:mysql://localhost:3306/dipcoin_unit?allowMultiQueries=true&amp;useSSL=false&amp;useUnicode=true&amp;useJDBCCompliantTimezoneShift=true&amp;useLegacyDatetimeCode=false&amp;serverTimezone=UTC&amp;createDatabaseIfNotExist=true" />
+			<property name="username" value="root" />
+			<property name="password" value="" />
+		</bean>
+	</beans>
+</beans>

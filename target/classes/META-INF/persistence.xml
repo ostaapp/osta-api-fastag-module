@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence" version="2.1">
+	<persistence-unit name="fastagJpaPersistenceUnit"
+		transaction-type="RESOURCE_LOCAL">	
+			<provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+		
+			<class>com.dipcoin.db.services.model.User</class>	
+			<class>com.dipcoin.db.services.model.AppInfo</class>
+			<class>com.dipcoin.db.services.model.BillPaymentsInfo</class>	
+			<class>com.dipcoin.db.services.model.Dipcoin</class>
+			<class>com.dipcoin.db.services.model.DipcoinMI</class>
+			<class>com.dipcoin.db.services.model.DipcoinTransaction</class>
+			<class>com.dipcoin.db.services.model.Merchant</class>
+			<class>com.dipcoin.db.services.model.MerchantDoc</class>
+			<class>com.dipcoin.db.services.model.MerchantOnboard</class>
+			<class>com.dipcoin.db.services.model.Recharge</class>
+			<class>com.dipcoin.db.services.model.RechargePlan</class>
+			<class>com.dipcoin.db.services.model.RechargeRecon</class>
+			<class>com.dipcoin.db.services.model.RechargeReconFile</class>
+			<class>com.dipcoin.db.services.model.PartnerApproval</class>
+			<class>com.dipcoin.db.services.model.PartnerCredential</class>
+			<class>com.dipcoin.db.services.model.PartnerServer</class>
+			<class>com.dipcoin.db.services.model.TollRegistration</class>
+			<class>com.dipcoin.db.services.model.TollTag</class>
+			<class>com.dipcoin.db.services.model.Epc</class>
+			<class>com.dipcoin.db.services.model.TollPlaza</class>
+			<class>com.dipcoin.db.services.model.TollTransaction</class>
+			<class>com.dipcoin.db.services.model.LoanData</class>
+			<class>com.dipcoin.db.services.model.ForceCloseTagDetails</class>
+			<class>com.dipcoin.db.services.model.BankBranchDetails</class>
+			<class>com.dipcoin.db.services.model.LoanTransaction</class>
+			<class>com.dipcoin.db.services.model.MerchantBBPSRecon</class>
+			<class>com.dipcoin.db.services.model.MerchantAdjustmentRecon</class>
+			<class>com.dipcoin.db.services.model.TollRecharge</class>
+			<class>com.dipcoin.db.services.model.VahanInfo</class>
+			<class>com.dipcoin.db.services.model.VahanInfoAudit</class>
+			<class>com.dipcoin.db.services.model.FeesAndDeposit</class>
+			<class>com.dipcoin.db.services.model.Bank</class>
+			<class>com.dipcoin.db.services.model.BankAccount</class>
+			<class>com.dipcoin.db.services.model.BankDoc</class>
+			<class>com.dipcoin.db.services.model.BankDetails</class>
+			<class>com.dipcoin.db.services.model.BankRecon</class>
+			<class>com.dipcoin.db.services.model.BankReconFile</class>
+			<class>com.dipcoin.db.services.model.Audit</class>
+			<class>com.dipcoin.db.services.model.BankTransaction</class>
+			<class>com.dipcoin.db.services.model.BankReconFileHistory</class>
+			<class>com.dipcoin.db.services.model.UserDevice</class>
+			<class>com.dipcoin.db.services.model.Session</class>
+			<class>com.dipcoin.db.services.model.SessionHistory</class>
+			<class>com.dipcoin.db.services.model.CustomerAccount</class>
+			<class>com.dipcoin.db.services.model.ChargebackDoc</class>
+			<class>com.dipcoin.db.services.model.Chargeback</class>
+			<class>com.dipcoin.db.services.model.BankAgentDetails</class>
+			<class>com.dipcoin.db.services.model.BillerCategories</class>
+			<class>com.dipcoin.db.services.model.BillerCoverages</class>
+			<class>com.dipcoin.db.services.model.BillerValidationParam</class>
+			<class>com.dipcoin.db.services.model.ConvenienceFeeManagement</class>
+			<class>com.dipcoin.db.services.model.MerchantRecon</class>
+			<class>com.dipcoin.db.services.model.PlanDetail</class>
+			<class>com.dipcoin.db.services.model.RechargePlanDetails</class>
+			<class>com.dipcoin.db.services.model.RechargeServiceProvider</class>
+			<class>com.dipcoin.db.services.model.UserNotifications</class>
+			<class>com.dipcoin.db.services.model.UserState</class>
+			
+			<class>com.dipcoin.partner.db.services.model.Partner</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerAccount</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerAccountTransaction</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerTransaction</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerCharge</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerPGCharge</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerFile</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerRecon</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerReconFile</class>
+			<class>com.dipcoin.partner.db.services.model.PartnerReconFileHistory</class>
+			<class>com.dipcoin.partner.db.services.model.PaymentGateway</class>
+			<class>com.dipcoin.partner.db.services.model.PaymentGatewayOption</class>
+			<class>com.dipcoin.partner.db.services.model.PaymentGatewayRecon</class>
+			<class>com.dipcoin.partner.db.services.model.PaymentGatewayReconFile</class>
+			<class>com.dipcoin.partner.db.services.model.PaymentGatewayReconFileHistory</class>
+			<class>com.dipcoin.partner.db.services.model.CreditLimit</class>
+			<class>com.dipcoin.partner.db.services.model.UserCards</class>
+			
+			<exclude-unlisted-classes>false</exclude-unlisted-classes>
+					
+			<properties>
+			<property name="hibernate.dialect"
+				value="org.hibernate.dialect.MySQL5Dialect" />
+			<property name="hibernate.hbm2ddl.auto" value="none" />
+			<property name="hibernate.show_sql" value="true" />
+			<property name="hibernate.format_sql" value="true" />
+			<property name="hibernate.use_sql_comments" value="true" />
+			<property name="hibernate.naming-strategy"
+				value="org.hibernate.cfg.EJB3NamingStrategy" />
+		</properties>
+		</persistence-unit>
+</persistence>
