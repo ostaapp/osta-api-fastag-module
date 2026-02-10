@@ -31,6 +31,7 @@ import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.CustomerDipcoinResponse;
 import com.dipcoin.api.model.TollRechargeResponse;
+import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.resource.TollCustomerResource;
 import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
 import io.micrometer.core.annotation.Timed;
@@ -72,6 +73,63 @@ public class TollCustomerRequestHandler {
 			throws Exception, APIException {
 
 		return tollServicesResource.getTollCustomerDetails(httpServletContext.getUser(), status, tagId);
+	}
+	
+	// Get Toll customer Doc based on docpath
+	@GetMapping("doc")
+	@ApiOperation(value = "Getting the toll Customer Document based on doc path", notes = "API to get Toll Customer Doc based on doc path", response = TollRegistrationResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity getTollCustomerDoc(
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = "Get Toll Customer info based on Toll customer id ", required = false) @QueryParam(value = "docPath") final String docPath,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.getTollCustomerDoc(httpServletContext.getUser(), clientTransactionId, docPath);
+	}
+	
+	// vehicle verification netc
+	@GetMapping("vehicleVerification")
+	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity tollVehicleVerification(
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = "vehicle verification from netc based on vehicle registration number", required = false) @RequestParam(value = "registrationNo", required = false) final String vehicleRegistrationNo,
+			@ApiParam(value = "vehicle verification from netc based on vehicle registration number", required = false) @RequestParam(value = "vehicleClass", required = false) final String vehicleClass,
+			@ApiParam(value = "vehicle verification from netc based on vehicle tagId", required = false) @RequestParam(value = "tagId", required = false) final String tagId,
+			@ApiParam(value = "vehicle verification from netc based on vehicle tid", required = false) @RequestParam(value = "tid", required = false) final String tid,
+			@ApiParam(value = "cardId", required = false) @RequestParam(value = "cardId", required = true) final Integer cardId,
+			@ApiParam(value = "regType", required = false) @RequestParam(value = "regType", required = true) final Integer regType,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.vehicleVerification(httpServletContext.getUser(), clientTransactionId,
+				vehicleRegistrationNo, vehicleClass, tagId, tid, cardId, regType);
+	}
+	
+	@GetMapping("charges")
+	@ApiOperation(value = "Getting the vehicle charges based on bankId and vehicle class.", notes = "API to get all charges for vehicle based on bank and vehicle class", response = TollRegistrationResponse.class)
+	@ApiResponses(value = { @ApiResponse(code = 400, message = "Vehicle Class Not found", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Bank Not Found", response = APIResponse.class) })
+	public ResponseEntity getTollVehicleCharges(
+			@ApiParam(value = "bankId for particular vehicle to get the charges", required = false) @QueryParam(value = "cardId") final String cardId,
+			@ApiParam(value = "Vehicle Class type", required = false) @QueryParam(value = "vehicleClass") final String vehicleClass,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
+				RegistrationType.DEFAULT.value());
 	}
 
 }
