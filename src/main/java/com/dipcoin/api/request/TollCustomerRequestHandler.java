@@ -131,5 +131,20 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
 				RegistrationType.DEFAULT.value());
 	}
+	
+	@GetMapping("IHMCL/charges")
+	@ApiOperation(value = "Getting the Vehicle Charges based on bankId and Vehicle Class for IHMCL.", notes = "API to get all Charges for Vehicle based on bank and vehicle Class for IHMCL", response = TollRegistrationResponse.class)
+	@ApiResponses(value = { @ApiResponse(code = 400, message = "Vehicle Class Not found", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Bank Not Found", response = APIResponse.class) })
+	public ResponseEntity getTollVehicleChargesforIHMCL(
+			@ApiParam(value = "bankId for particular Vehicle to get the charges", required = false) @QueryParam(value = "cardId") final String cardId,
+			@ApiParam(value = "Vehicle Class type", required = false) @QueryParam(value = "vehicleClass") final String vehicleClass,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
+				RegistrationType.IHMCL.value());
+	}
 
 }
