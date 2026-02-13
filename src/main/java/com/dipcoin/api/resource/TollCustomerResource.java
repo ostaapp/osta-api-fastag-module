@@ -3,18 +3,39 @@ package com.dipcoin.api.resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.io.StringReader;
+import javax.xml.bind.JAXB;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Marshaller;
+
+import com.dipcoin.commons.CoreUtils;
 import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.commons.ObjectDataStore;
 import com.dipcoin.api.commons.HeaderCode;
+import com.dipcoin.api.commons.TollProperties;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.Detail;
+import com.dipcoin.api.model.Head;
+import com.dipcoin.api.model.TollNetcDetailsRequest;
+import com.dipcoin.api.model.TollNetcDetailsResponse;
+import com.dipcoin.api.model.TollNetcSyncTimeResponse;
 import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.model.TollTagFeeAndChargesResponse;
 import com.dipcoin.api.model.TollTagResponse;
+import com.dipcoin.api.model.Txn;
+import com.dipcoin.api.model.Vehicle;
+import com.dipcoin.api.model.VehicleDetails;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -22,7 +43,6 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.annotation.Lazy;
 import org.apache.commons.collections4.CollectionUtils;
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,18 +50,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.CustomerDBService;
 import com.dipcoin.db.services.FeesAndDepositDBService;
+import com.dipcoin.db.services.MerchantDBService;
 import com.dipcoin.db.services.TollDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants;
 import com.dipcoin.db.services.commons.DBConstants.CustomerAccountMethodType;
+import com.dipcoin.db.services.commons.DBConstants.MerchantBusinessSegment;
+import com.dipcoin.db.services.commons.DBConstants.TollTagApprovalStatus;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.CustomerAccount;
 import com.dipcoin.db.services.model.Epc;
 import com.dipcoin.db.services.model.FeesAndDeposit;
+import com.dipcoin.db.services.model.Merchant;
 import com.dipcoin.db.services.model.TollRegistration;
 import com.dipcoin.db.services.model.TollTag;
 import com.dipcoin.db.services.model.User;
+import com.dipcoin.partner.toll.commons.TollConstant;
 import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
+import com.dipcoin.partner.toll.commons.TollHttpsServices;
+import com.dipcoin.partner.toll.commons.TollSignatureGenerationServices;
 import com.dipcoin.api.commons.APIConstants;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.commons.APIUtils;
@@ -75,6 +102,21 @@ public class TollCustomerResource {
 	
 	@Autowired
 	private UserDBService userDBService;
+	
+	@Autowired
+	private MerchantDBService merchantDBService;
+	
+	@Autowired
+	private TollProperties tollProperties;
+	
+	@Autowired
+	private BrontooResource brontooResource;
+	
+	@Autowired
+	private TollSignatureGenerationServices tollSignatureGenerationServices;
+	
+	@Autowired
+	private TollHttpsServices tollHttpsServices;
 
 	/*
 	 * Getting tollCustomer Details of basis of USERID OR BANKCODE OR TAGID.
@@ -455,8 +497,298 @@ public class TollCustomerResource {
 		}
 	}
 
-	public ResponseEntity vehicleVerification(User user, String clientTransactionId, String vehicleRegistrationNo,
-			String vehicleClass, String tagId, String tid, Integer cardId, Integer regType) {
+	public ResponseEntity vehicleVerification(final User user, final String clientTransactionId,
+			String vehicleRegistrationNo, String vehicleClass, String tagId, String tid, Integer cardId,
+			Integer registrationType) throws APIException, Exception {
+
+		TollNetcDetailsRequest tollNetcDetailsRequest = new TollNetcDetailsRequest();
+		TollTagResponse tollTagResponse = new TollTagResponse();
+		String refUrl = StringUtils.EMPTY;
+		try {
+			// Checking for the clientTransactionID is null
+			if (clientTransactionId == null) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+						.body(APIResponse.error(HeaderCode.MISSING_CLIENTTRANSACTIONID));
+			}
+
+			if (!userDBService.isCustomer(user)) {
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+						.body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+			}
+			if (!this.userDBService.isActive(user)) {
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+						.body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+			}
+
+			CustomerAccount custAccount = customerDBService.getAccount(user.getId(), cardId, false);
+
+			if (custAccount == null) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+						.body(APIResponse.error(HeaderCode.INVALID_CARD_ID));
+			}
+
+			Bank bank = custAccount.getBank();
+			if (custAccount.getTypeOfMethod() == CustomerAccountMethodType.WALLET_INB.value()) {
+				if (custAccount.getWalletBankId() == NumberUtils.INTEGER_ZERO) {
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.body(APIResponse.error(HeaderCode.BANK_DOESNT_EXISTS));
+				}
+				bank = bankDBService.getBank(custAccount.getWalletBankId());
+				if (bank == null) {
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.body(APIResponse.error(HeaderCode.BANK_DOESNT_EXISTS));
+				}
+
+			}
+
+			List<Merchant> merchants = merchantDBService
+					.asyncFindMerchantByBusinessSegment(MerchantBusinessSegment.TOLL.value()).get();
+
+			if (CollectionUtils.isEmpty(merchants)) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+						.body(APIResponse.error(HeaderCode.MERCHANT_DOESNT_EXIST));
+			}
+
+			if (!tollProperties.isConnectNpci()) {
+				List<TollTag> tollTags = tollDBService
+						.findTollTagByRegistrationNo(Arrays.asList(vehicleRegistrationNo));
+				String excCode = StringUtils.EMPTY;
+				if (CollectionUtils.isNotEmpty(tollTags)) {
+
+					for (TollTag tollTag : tollTags) {
+						if (!(TollTagApprovalStatus.INACTIVE.value() == Integer.parseInt(tollTag.getStatus())
+								|| TollTagApprovalStatus.BANK_REJECTED.value() == Integer.parseInt(tollTag.getStatus()))
+								|| TollConstant.EXC_CODE_BLACKLIST.equalsIgnoreCase(tollTag.getExcCode())
+								|| TollConstant.EXC_CODE_HOTLIST.equalsIgnoreCase(tollTag.getExcCode())) {
+
+							tollTagResponse.addHeaderCode(HeaderCode.TOLL_USER_VEHICLE_NUMBER_ALREADY_EXIST);
+							tollTagResponse.setExcCode(TollConstant.EXC_CODE_BLACKLIST);
+							return ResponseEntity.status(HttpStatus.OK).body(tollTagResponse);
+						}
+					}
+
+					for (TollTag tollTag : tollTags) {
+						excCode = tollTag.getExcCode() + "," + excCode;
+					}
+
+					tollTagResponse.addHeaderCode(HeaderCode.TOLL_USER_VEHICLE_NUMBER_ALREADY_EXIST);
+					tollTagResponse.setExcCode(excCode);
+					return ResponseEntity.status(HttpStatus.OK).body(tollTagResponse);
+				}
+
+				tollTagResponse.addHeaderCode(HeaderCode.TOLL_VEHICLE_REG_NO_NOT_PRESENT);
+				return ResponseEntity.status(HttpStatus.OK).body(tollTagResponse);
+
+			}
+
+			LOG.debug(
+					LogFormatter.instance(httpServletContext.getTraceId()).message("calling toll sync time").format());
+
+			TollNetcSyncTimeResponse tollNetcSyncTimeResponse = new TollNetcSyncTimeResponse();
+
+			ResponseEntity responseEntity = this.brontooResource.syncTime(bank);
+			if (responseEntity.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+				return responseEntity;
+			}
+			tollNetcSyncTimeResponse = (TollNetcSyncTimeResponse) responseEntity.getBody();
+
+			String[] bankInfos = tollProperties.getBankInfo().split(",");
+
+			for (String bankInfo : bankInfos) {
+				String[] info = bankInfo.split("~");
+				if (info[2].equalsIgnoreCase(bank.getIin())) {
+					refUrl = info[3];
+				}
+			}
+
+			Txn txn = new Txn();
+
+			Vehicle vehicle = new Vehicle();
+
+			Head head = new Head();
+			// head.setVer(TollConstant.VERSION);
+			head.setVer(TollConstant.VER);
+			SimpleDateFormat formatter = new SimpleDateFormat(TollConstant.TS_DATE_FORMAT);
+			Date date = formatter.parse(tollNetcSyncTimeResponse.getResp().getTs());
+			head.setTs(tollNetcSyncTimeResponse.getResp().getTs());
+			txn.setTs(tollNetcSyncTimeResponse.getResp().getTs());
+			head.setOrgId(bank.getOrgId());
+
+			formatter = new SimpleDateFormat(TollConstant.MSG_DATE_FORMAT);
+			date = new Date(System.currentTimeMillis());
+			head.setMsgId(bank.getOrgId() + formatter.format(date).toUpperCase());
+
+			vehicle.setAvc(
+					StringUtils.isNotBlank(vehicleClass) || vehicleClass != null ? vehicleClass : TollConstant.EMPTY);
+			vehicle.setTagId(StringUtils.isNotBlank(tagId) || tagId != null ? tagId : TollConstant.EMPTY);
+			vehicle.setTID(StringUtils.isNotBlank(tid) || tid != null ? tid : TollConstant.EMPTY);
+			vehicle.setVehicleRegNo(StringUtils.isNotBlank(vehicleRegistrationNo) || vehicleRegistrationNo != null
+					? vehicleRegistrationNo
+					: TollConstant.EMPTY);
+
+			String dipcoinReferenceNumber = CoreUtils.randomAlphaString(22);
+
+			txn.setId(dipcoinReferenceNumber);
+			txn.setNote(TollConstant.REQUEST_DETAILS_NOTE);
+			txn.setOrgTxnId(bank.getOrgId() + dipcoinReferenceNumber);
+			txn.setRefId(dipcoinReferenceNumber);
+			txn.setRefUrl(refUrl);
+			txn.setType(TollConstant.REQUEST_DETAILS_TYPE);
+			txn.setVehicle(vehicle);
+
+			tollNetcDetailsRequest.setHead(head);
+			tollNetcDetailsRequest.setTxn(txn);
+
+			// Create JAXB Context
+			JAXBContext jaxbContext = JAXBContext.newInstance(TollNetcDetailsRequest.class);
+
+			// Create Marshaller
+			Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+
+			// Required formatting??
+			jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+
+			// Print XML String to Console
+			StringWriter sw = new StringWriter();
+
+			// Write XML to StringWriter
+			jaxbMarshaller.marshal(tollNetcDetailsRequest, sw);
+
+			// Verify XML Content
+			String postData = sw.toString();
+
+			ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(
+					postData.getBytes(StandardCharsets.UTF_8));
+
+			ByteArrayOutputStream byteArrayOutputStream = tollSignatureGenerationServices.signatureGenerationServices(
+					byteArrayInputStream, httpServletContext.getTraceId(), bank.getOrgId());
+			String responseData = null;
+
+			// NPCI Active Active Setup Phase2 changes
+			String ipAddress = this.tollHttpsServices.npciHealthCheckApi(httpServletContext.getTraceId());
+			if (StringUtils.isEmpty(ipAddress)) {
+
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+						.body(APIResponse.error(HeaderCode.NETC_NPCI_SERVER_DOWN));
+
+			}
+			int port = this.tollProperties.getNetcHealthCheckPort();
+
+			try {
+				if (tollProperties.isConnectNpci()) {
+					TollHttpsServices.bankIin = bank.getIin();
+					/*
+					 * String url = "";
+					 * 
+					 * switch (registrationType) { case 0: url =
+					 * tollProperties.getRequestDetailUrl(); break; case 1: url =
+					 * tollProperties.getRequestDetailIHMCL(); break; default: url =
+					 * tollProperties.getRequestDetailUrl(); break; }
+					 */
+
+					String endPoint = "";
+
+					switch (registrationType) {
+					case 0:
+						endPoint = tollProperties.getRequestDetailUrl();
+						break;
+					case 1:
+						endPoint = tollProperties.getRequestDetailIHMCL();
+						break;
+					default:
+						endPoint = tollProperties.getRequestDetailUrl();
+						break;
+					}
+
+					String url = "https://" + ipAddress + ":" + port + endPoint;
+					responseData = tollHttpsServices.send(url, httpServletContext.getTraceId(), byteArrayOutputStream);
+
+					TollHttpsServices.bankIin = StringUtils.EMPTY;
+
+					if (responseData == null) {
+						return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+								.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+					}
+				}
+			} catch (Exception e) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Exception Caught while calling tollHttpsServices").format(), e);
+			}
+
+			TollNetcDetailsResponse tollNetcDetailsResponse = JAXB.unmarshal(new StringReader(responseData),
+					TollNetcDetailsResponse.class);
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Txn Id")
+					.data("Txn Id", tollNetcDetailsResponse.getTxn().getId()).format());
+
+			List<HeaderCode> headerCodes = new ArrayList<>();
+			String[] errCodes = tollNetcDetailsResponse.getTxn().getResp().getVehicle().getErrCode().split(",");
+			String[] respCodes = tollNetcDetailsResponse.getTxn().getResp().getRespCode().split(",");
+
+			for (HeaderCode headerCode : HeaderCode.values()) {
+				for (String errCode : errCodes) {
+
+					if (headerCode.code().equalsIgnoreCase("N-" + errCode)) {
+						headerCodes.add(headerCode);
+
+					}
+				}
+				for (String respCode : respCodes) {
+
+					if (headerCode.code().equalsIgnoreCase("N-" + respCode)) {
+						headerCodes.add(headerCode);
+
+					}
+				}
+			}
+
+			if (registrationType == RegistrationType.DEFAULT.value()) {
+				String excCode = StringUtils.EMPTY;
+				if (tollNetcDetailsResponse.getTxn().getResp().getVehicle().getVehicleDetails() != null
+						&& CollectionUtils.isNotEmpty(
+								tollNetcDetailsResponse.getTxn().getResp().getVehicle().getVehicleDetails())) {
+
+					for (VehicleDetails vehicleDetail : tollNetcDetailsResponse.getTxn().getResp().getVehicle()
+							.getVehicleDetails()) {
+
+						for (Detail detail : vehicleDetail.getDetail()) {
+
+							if (detail.getName().equalsIgnoreCase(TollConstant.EXCCODE)) {
+								excCode = excCode + detail.getValue() + ",";
+
+							}
+
+						}
+					}
+					if (StringUtils.isNotBlank(excCode)) {
+						excCode = excCode.substring(NumberUtils.INTEGER_ZERO,
+								excCode.length() - NumberUtils.INTEGER_ONE);
+						tollTagResponse.setExcCode(excCode);
+					}
+				}
+
+				tollTagResponse.addHeaderCodes(headerCodes);
+
+				return ResponseEntity.status(HttpStatus.OK).body(tollTagResponse);
+
+			} else if (registrationType == RegistrationType.IHMCL.value() && !HeaderCode.VEHICLE_REG_NO_NOT_IN_DB.code()
+					.contains(tollNetcDetailsResponse.getTxn().getResp().getVehicle().getErrCode())) {
+
+				return ResponseEntity.status(HttpStatus.OK).body(tollNetcDetailsResponse);
+
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.errors(headerCodes));
+
+		} catch (Exception ex) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("vehicle verification" + ex)
+					.format());
+		}
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
+
+	}
+
+	public ResponseEntity reqVehicleDetails(String vrn, String vin, String lastFiveDigitsOfEngineNo, Object object,
+			String bankReferenceId) {
 		// TODO Auto-generated method stub
 		return null;
 	}

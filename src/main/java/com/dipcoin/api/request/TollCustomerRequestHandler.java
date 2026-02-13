@@ -146,5 +146,27 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
 				RegistrationType.IHMCL.value());
 	}
+	
+	// reqVehicle details this Api is similar to toll vehicle verification api
+	// this api is used to get details from vahan system using vin & engineNo or vrn
+	// & engineNo combo
+	@GetMapping("reqVehicleDetails")
+	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity reqVehicleDetails(
+			@ApiParam(value = "vehicle verification from netc based on vehicle registration number", required = false) @RequestParam(value = "vrn", required = false) final String vrn,
+			@ApiParam(value = "vehicle verification from netc based on vehicle vin", required = false) @RequestParam(value = "vin", required = false) final String vin,
+			@ApiParam(value = "vehicle verification from netc based on vehicle lastFiveDigitsOfEngineNo", required = false) @RequestParam(value = "lastFiveDigitsOfEngineNo", required = false) final String lastFiveDigitsOfEngineNo,
+			@ApiParam(value = "bankReferenceId", required = true) @RequestParam(value = "bankReferenceId") final String bankReferenceId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.reqVehicleDetails(vrn, vin, lastFiveDigitsOfEngineNo, null, bankReferenceId);
+	}
 
 }
