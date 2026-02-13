@@ -168,5 +168,27 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.reqVehicleDetails(vrn, vin, lastFiveDigitsOfEngineNo, null, bankReferenceId);
 	}
+	
+	// toll vehicle verification at Customer side
+	@GetMapping("vehicleVerificationStatus")
+	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity tollVehicleVerification(
+			@ApiParam(value = "vehicle verification from netc based on vehicle registration number", required = false) @RequestParam(value = "registrationNo", required = false) final String vehicleRegistrationNo,
+			@ApiParam(value = "vehicle verification from netc based on vehicle tagId", required = false) @RequestParam(value = "tagId", required = false) final String tagId,
+			@ApiParam(value = "vehicle verification from netc based on vehicle tid", required = false) @RequestParam(value = "tid", required = false) final String tid,
+			@ApiParam(value = "vehicle verification from netc based on vehicle serialNumber", required = false) @RequestParam(value = "serialNumber", required = false) final String serialNumber,
+			@ApiParam(value = "bankId for particular Vehicle to get the charges", required = false) @QueryParam(value = "cardId") final Integer cardId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.customerVehicleVerificationStatus(httpServletContext.getUser(),
+				vehicleRegistrationNo, tagId, tid, serialNumber, RegistrationType.DEFAULT.value(), cardId, true);
+	}
 
 }

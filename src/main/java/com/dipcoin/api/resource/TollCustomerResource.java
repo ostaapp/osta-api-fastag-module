@@ -17,6 +17,8 @@ import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.Detail;
 import com.dipcoin.api.model.Head;
+import com.dipcoin.api.model.ReqVehicleDetailResponse;
+import com.dipcoin.api.model.ReqVehicleDetailsRequest;
 import com.dipcoin.api.model.TollNetcDetailsRequest;
 import com.dipcoin.api.model.TollNetcDetailsResponse;
 import com.dipcoin.api.model.TollNetcSyncTimeResponse;
@@ -44,6 +46,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.context.annotation.Lazy;
 import org.apache.commons.collections4.CollectionUtils;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.logging.log4j.LogManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -787,10 +790,269 @@ public class TollCustomerResource {
 
 	}
 
-	public ResponseEntity reqVehicleDetails(String vrn, String vin, String lastFiveDigitsOfEngineNo, Object object,
+	public ResponseEntity reqVehicleDetails(String vrn, String vin, String last5digitofenginNumber, Integer bankId,
 			String bankReferenceId) {
-		// TODO Auto-generated method stub
-		return null;
+
+		TollNetcDetailsResponse tollNetcDetailsResponse = new TollNetcDetailsResponse();
+		ReqVehicleDetailResponse reqVehicleDetailResp = new ReqVehicleDetailResponse();
+		String responseData = null;
+		String last5digitofengineno = null;
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("vrn" + vrn)
+				.data("last5digitofengineno", last5digitofenginNumber).data("vin", vin).format());
+
+		if (StringUtils.isNotEmpty(last5digitofenginNumber) && last5digitofenginNumber.length() > 5) {
+			last5digitofengineno = last5digitofenginNumber.substring(last5digitofenginNumber.length() - 5);
+
+		} else {
+			last5digitofengineno = last5digitofenginNumber;
+		}
+
+		String refUrl = StringUtils.EMPTY;
+		Bank bank = new Bank();
+		if (StringUtils.isNotEmpty(bankReferenceId)) {
+			bank = bankDBService.getBank(bankReferenceId);
+		} else {
+			bank = bankDBService.getBank(bankId);
+		}
+		if (bank == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("bank is null").format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BANK_DOESNT_EXISTS));
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("calling toll sync time").format());
+		try {
+			TollNetcSyncTimeResponse tollNetcSyncTimeResponse = new TollNetcSyncTimeResponse();
+
+			ResponseEntity responseEntity = this.brontooResource.syncTime(bank);
+			if (responseEntity.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+				return responseEntity;
+			}
+			tollNetcSyncTimeResponse = (TollNetcSyncTimeResponse) responseEntity.getBody();
+
+			String[] bankInfos = tollProperties.getBankInfo().split(",");
+
+			for (String bankInfo : bankInfos) {
+				String[] info = bankInfo.split("~");
+				if (info[2].equalsIgnoreCase(bank.getIin())) {
+					refUrl = info[3];
+				}
+			}
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.data("last5digitofengineno is not blank", last5digitofengineno).format());
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("vin is not blank ", vin).format());
+
+			responseData = this.callNETCForReqVehicleDetails(vrn, vin, last5digitofengineno, bank, refUrl,
+					tollNetcSyncTimeResponse);
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return ResponseEntity.status(HttpStatus.ACCEPTED).body(responseData);
+	}
+	
+	/*
+	 * reVehicleDetails 1.1 This API is called by Issuer Bank to get the details of
+	 * registered Tag ID using VIN & last5digitofengineno OR using VRN &
+	 * last5digitofengineno. Privilege: Initiated by Issuer Bank
+	 */
+	public String callNETCForReqVehicleDetails(String vrn, String vinNumber, String last5digitofengineno, Bank bank,
+			String refUrl, TollNetcSyncTimeResponse tollNetcSyncTimeResponse) throws Exception {
+
+		TollNetcSyncTimeResponse tollNetcSyncTimeResponse1 = new TollNetcSyncTimeResponse();
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("vrn" + vrn)
+				.data("last5digitofengineno", last5digitofengineno).data("vinNumber", vinNumber).format());
+
+		if (tollNetcSyncTimeResponse == null) {
+			tollNetcSyncTimeResponse1 = new TollNetcSyncTimeResponse();
+
+			ResponseEntity responseEntity = this.brontooResource.syncTime(bank);
+			if (responseEntity.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+				return null;
+			}
+			tollNetcSyncTimeResponse1 = (TollNetcSyncTimeResponse) responseEntity.getBody();
+
+			tollNetcSyncTimeResponse = tollNetcSyncTimeResponse1;
+		}
+
+		if (refUrl == null) {
+			String[] bankInfos = tollProperties.getBankInfo().split(",");
+
+			for (String bankInfo : bankInfos) {
+				String[] info = bankInfo.split("~");
+				if (info[2].equalsIgnoreCase(bank.getIin())) {
+					refUrl = info[3];
+				}
+			}
+
+		}
+
+		Vehicle vehicle = new Vehicle();
+
+		if (StringUtils.isNotBlank(vrn) && StringUtils.isNotBlank(last5digitofengineno)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("vrn" + vrn)
+					.data("last5digitofengineno", last5digitofengineno).format());
+			vehicle.setVrn(vrn);
+			vehicle.setLast5digitofengineno(last5digitofengineno);
+		} else if (StringUtils.isNotBlank(vinNumber) && StringUtils.isNotBlank(last5digitofengineno)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("vinNumber" + vinNumber)
+					.data("last5digitofengineno", last5digitofengineno).format());
+			vehicle.setVinNumber(vinNumber.toUpperCase());
+			vehicle.setLast5digitofengineno(last5digitofengineno);
+		} else if (StringUtils.isNotBlank(vinNumber)) {
+			vehicle.setVinNumber(vinNumber.toUpperCase());
+		}
+
+		String dipcoinReferenceNumber = CoreUtils.randomAlphaString(22);
+		String txnId = "";
+
+		Txn txn = new Txn();
+
+		Head head = new Head();
+		// head.setVer(TollConstant.VERSION);
+		head.setVer(TollConstant.VER);
+		SimpleDateFormat formatter = new SimpleDateFormat(TollConstant.TS_DATE_FORMAT);
+		Date date = formatter.parse(tollNetcSyncTimeResponse.getResp().getTs());
+		head.setTs(tollNetcSyncTimeResponse.getResp().getTs());
+		txn.setTs(tollNetcSyncTimeResponse.getResp().getTs());
+		head.setOrgId(bank.getOrgId());
+
+		formatter = new SimpleDateFormat(TollConstant.MSG_DATE_FORMAT);
+		date = new Date(System.currentTimeMillis());
+		head.setMsgId(bank.getOrgId() + formatter.format(date).toUpperCase());
+
+		txn.setId(dipcoinReferenceNumber);
+		txnId = dipcoinReferenceNumber;
+		txn.setNote(TollConstant.REQUEST_DETAILS_NOTE);
+		txn.setOrgTxnId(bank.getOrgId() + dipcoinReferenceNumber);
+		txn.setRefId(dipcoinReferenceNumber);
+		txn.setRefUrl(refUrl);
+		txn.setType(TollConstant.REQUEST_DETAILS_TYPE);
+		txn.setVehicle(vehicle);
+
+		ReqVehicleDetailsRequest reqVehicleDetailsRequest = new ReqVehicleDetailsRequest();
+
+		reqVehicleDetailsRequest.setHead(head);
+		reqVehicleDetailsRequest.setTxn(txn);
+
+		// Create JAXB Context
+		JAXBContext jaxbContext = JAXBContext.newInstance(ReqVehicleDetailsRequest.class);
+
+		// Create Marshaller
+		Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+
+		// Required formatting??
+		jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+
+		// Print XML String to Console
+		StringWriter sw = new StringWriter();
+
+		// Write XML to StringWriter
+		jaxbMarshaller.marshal(reqVehicleDetailsRequest, sw);
+
+		// Verify XML Content
+		String postData = sw.toString();
+
+		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(postData.getBytes(StandardCharsets.UTF_8));
+
+		ByteArrayOutputStream byteArrayOutputStream = tollSignatureGenerationServices
+				.signatureGenerationServices(byteArrayInputStream, httpServletContext.getTraceId(), bank.getOrgId());
+		String responseData = null;
+
+		// NPCI Active Active Setup Phase2 changes
+		String ipAddress = this.tollHttpsServices.npciHealthCheckApi(httpServletContext.getTraceId());
+		if (StringUtils.isEmpty(ipAddress)) {
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("********** NPCI Server is DOWN **********").format());
+			return null;
+
+		}
+		int port = this.tollProperties.getNetcHealthCheckPort();
+
+		try {
+			if (tollProperties.isConnectNpci()) {
+				TollHttpsServices.bankIin = bank.getIin();
+				/*
+				 * String url = "";
+				 * 
+				 * switch (regType) { case 0: url = tollProperties.getRequestDetailUrl(); break;
+				 * case 1: url = tollProperties.getRequestDetailIHMCL(); break; default: url =
+				 * tollProperties.getRequestDetailUrl(); break; }
+				 */
+
+				String endPoint = tollProperties.getReqVehicleDetailsUrl();
+
+				/*
+				 * switch (regType) { case 0: endPoint = tollProperties.getRequestDetailUrl();
+				 * break; case 1: endPoint = tollProperties.getRequestDetailIHMCL(); break;
+				 * default: endPoint = tollProperties.getRequestDetailUrl(); break; }
+				 */
+
+				String url = "https://" + ipAddress + ":" + port + endPoint;
+
+				responseData = tollHttpsServices.send(url, httpServletContext.getTraceId(), byteArrayOutputStream);
+
+				return responseData;
+				// return txnId;
+			}
+		} catch (Exception e) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Exception Caught while calling tollHttpsServices").format(), e);
+		}
+		return responseData;
+
+	}
+
+	// Customer Vehicle Verification Status
+	public ResponseEntity customerVehicleVerificationStatus(User user, String vehicleRegistrationNo, String tagId,
+			String tid, String serialNumber, Integer regType, Integer cardId, boolean flag)
+			throws InterruptedException, ExecutionException {
+
+		if (user == null) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(APIResponse.error(HeaderCode.USER_DOESNT_EXIST));
+		}
+
+		if (!this.userDBService.isCustomer(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		if (!this.userDBService.isActive(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+		}
+
+		if (StringUtils.isBlank(vehicleRegistrationNo)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.MISSING_INVALID_INFO));
+		}
+
+		if (!tollProperties.isConnectNpci()) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_API_NOT_ALLOWED));
+		}
+
+		CustomerAccount custAccount = customerDBService.getAccount(user.getId(), cardId, false);
+
+		if (custAccount == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.INVALID_CARD_ID));
+		}
+
+		Bank bank = custAccount.getBank();
+
+		if (bank == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BANK_DOESNT_EXISTS));
+		}
+
+		return brontooResource.getVehicleInfo(user, vehicleRegistrationNo, tagId, tid, regType, bank.getReferenceId()
+		/* flag */);
+
+		/*
+		 * return brontooResource.getVehicleInfo(user, vehicleRegistrationNo, tagId,
+		 * tid, null, vin, vrn, last5digitofengineno, regType, bank.getReferenceId());
+		 */
 	}
 
 }
