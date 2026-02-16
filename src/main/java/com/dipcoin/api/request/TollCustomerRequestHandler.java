@@ -56,6 +56,25 @@ public class TollCustomerRequestHandler {
 	@Autowired
 	@Lazy
 	private HttpServletContext httpServletContext;
+	
+	@PostMapping("register")
+	@ApiOperation(value = "Registeration Details for toll services customer", notes = "API to add a new customer account.", response = TollRegistrationResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity registerTollCustomer(@RequestParam("RCImage") MultipartFile[] rcDoc,
+			@RequestParam("idProof") MultipartFile idProof, @RequestParam("request") String request,
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
+				request, RegistrationType.DEFAULT.value(), clientTransactionId);
+	}
 
 	@GetMapping
 	@ApiOperation(value = "Getting the toll services Customer basis UserId | TagId", notes = "API to get all the Toll Customer basis of UserId | TagId.", response = TollRegistrationResponse.class)
