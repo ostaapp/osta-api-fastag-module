@@ -3,6 +3,8 @@ package com.dipcoin.api.resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.io.StringReader;
 import javax.xml.bind.JAXB;
 import javax.xml.bind.JAXBContext;
@@ -75,7 +77,12 @@ import com.dipcoin.partner.toll.commons.TollSignatureGenerationServices;
 import com.dipcoin.api.commons.APIConstants;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.commons.APIUtils;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+@Component("tollServiceResource")
+@Transactional(rollbackFor = { Exception.class, APIException.class }, propagation = Propagation.REQUIRES_NEW)
 public class TollCustomerResource {
 
 	private static final Logger LOG = LogManager.getLogger(TollCustomerResource.class);
@@ -1053,6 +1060,12 @@ public class TollCustomerResource {
 		 * return brontooResource.getVehicleInfo(user, vehicleRegistrationNo, tagId,
 		 * tid, null, vin, vrn, last5digitofengineno, regType, bank.getReferenceId());
 		 */
+	}
+
+	public ResponseEntity addAndUpdateTollCustomer(User user, Object object, Object object2, MultipartFile[] rcDoc,
+			MultipartFile idProof, String request, int value, String clientTransactionId) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }
