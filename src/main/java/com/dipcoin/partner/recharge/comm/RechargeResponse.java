@@ -5,8 +5,7 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
 
-import com.dipcoin.partner.recharge.comm.BillResponse.Fields;
-import com.dipcoin.partner.recharge.utils.RechargeRequestContext;
+import com.dipcoin.api.utils.RechargeRequestContext;
 import com.dipcoin.partner.utils.PartnerClient.Protocol;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
