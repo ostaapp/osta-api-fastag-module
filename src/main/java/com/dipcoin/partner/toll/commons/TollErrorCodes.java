@@ -6,9 +6,11 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+
+
 public enum TollErrorCodes {
 
-	//@formatter:off
+  //@formatter:off
   Error_code_SUCCESS("000", "Success"), 
   Error_code_UNREGISTERED_TAGS("001", "Unregistered tags"), 
   Error_code_VEHICLE_CLASS_AVC_IS_NOT_EQUAL_TO_MAPPER_VEHICLE_CLASS_("002", "Vehicle Class.AVC is not equal to mapper vehicle class."), 
@@ -78,33 +80,33 @@ public enum TollErrorCodes {
   
   
   //@formatter:on
-	private static final Logger LOG = LogManager.getLogger(TollErrorCodes.class);
+  private static final Logger LOG = LogManager.getLogger(TollErrorCodes.class);
 
-	private String apicode;
-	private String message;
+  private String apicode;
+  private String message;
 
-	private TollErrorCodes(String apicode, String message) {
-		this.apicode = apicode;
-		this.message = message;
-	}
+  private TollErrorCodes(String apicode, String message) {
+    this.apicode = apicode;
+    this.message = message;
+  }
 
-	public String code() {
-		return this.apicode;
-	}
+  public String code() {
+    return this.apicode;
+  }
 
-	public String message() {
-		return this.message;
-	}
+  public String message() {
+    return this.message;
+  }
 
-	static {
-		Set<String> lookup = new HashSet<>();
-		for (TollErrorCodes tollErrorCode : TollErrorCodes.values()) {
-			if (lookup.contains(tollErrorCode.code())) {
-				LOG.error(String.format("Duplicate code: %s configured. Last instance will be used",
-						tollErrorCode.code()));
-			} else {
-				lookup.add(tollErrorCode.code());
-			}
-		}
-	}
+  static {
+    Set<String> lookup = new HashSet<>();
+    for (TollErrorCodes tollErrorCode : TollErrorCodes.values()) {
+      if (lookup.contains(tollErrorCode.code())) {
+        LOG.error(String.format("Duplicate code: %s configured. Last instance will be used",
+            tollErrorCode.code()));
+      } else {
+        lookup.add(tollErrorCode.code());
+      }
+    }
+  }
 }

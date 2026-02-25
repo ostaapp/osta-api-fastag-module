@@ -1,12 +1,16 @@
-  package com.dipcoin.api.model;
+package com.dipcoin.api.model;
 
 import java.math.BigDecimal;
+import java.util.Map;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.dipcoin.api.commons.HeaderCode;
 import com.dipcoin.api.filter.HttpServletContext;
+//import com.dipcoin.api.model.ServerIntegrationRequest.Api;
+import com.dipcoin.bank.services.client.BankClient;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 

@@ -6,13 +6,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.fraudMgmt.ProcessEvent.EventType;
 import com.dipcoin.db.services.model.User;
 import com.dipcoin.db.services.model.UserState;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.springframework.context.annotation.Lazy;
+//import groovy.lang.Lazy;
 
 
 

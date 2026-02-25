@@ -13,26 +13,26 @@ import lombok.experimental.Accessors;
 @Getter
 public class RequestMetadata {
 
-	private String bankTransaction;
+  private String bankTransaction;
 
-	private String dipcoinTransaction;
+  private String dipcoinTransaction;
 
-	private String dipcoin;
+  private String dipcoin;
+  
+  private String bankRawRequest;
+  
+  private String bankRawResponse;
+  
+  private String methodName;
+  
+  private String bankTransactionType;
+  
+  private String dipcoinTransactionType;
+  
+  private BigDecimal amount;
 
-	private String bankRawRequest;
-
-	private String bankRawResponse;
-
-	private String methodName;
-
-	private String bankTransactionType;
-
-	private String dipcoinTransactionType;
-
-	private BigDecimal amount;
-
-	public RequestMetadata(String methodName) {
-		this.methodName = methodName;
-	}
-
+  public RequestMetadata(String methodName) {
+    this.methodName = methodName;
+  }
+  
 }
