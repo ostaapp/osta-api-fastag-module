@@ -16,6 +16,7 @@ import java.util.concurrent.Future;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Hibernate;
@@ -117,6 +118,12 @@ public class CustomerDipcoinResource {
 	@Autowired
 	@Lazy
 	private HttpServletContext httpServletContext;
+	
+	@Autowired
+	private MerchantDBService merchantDBService;
+	
+	@Autowired
+	private DipcoinBankHelper dipcoinBankHelper;
 
 	@Autowired
 	private CoreUtils coreUtils;
@@ -927,9 +934,565 @@ public class CustomerDipcoinResource {
 		}
 	}
 
-	public void deleteDipcoin(User user, String osta, boolean b) {
-		// TODO Auto-generated method stub
-		
+	/**
+	 * Customer Delete Dipcoin
+	 *
+	 * @return
+	 * @throws APIException
+	 */
+	public ResponseEntity deleteDipcoin(final User user, final String encDcoin, final boolean encryptDcoin)
+			throws Exception, APIException {
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Encrypted Coin", encDcoin).format());
+
+		if (!this.userDBService.isCustomer(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		String decDcoin = encryptDcoin ? encryptionResource.decrypt(user, null, null, encDcoin) : encDcoin;
+		if (decDcoin == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.INVALID_ENCRYPTED_DATA));
+		}
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Decrypted Coin", encDcoin).format());
+
+		// parse token
+		Either<ResponseEntity, String> validDipcoin = validateDipcoin(decDcoin, user);
+		if (validDipcoin.isLeft()) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to validate dipcoin")
+					.format());
+			return validDipcoin.getLeft();
+		}
+
+		// get dipcoin by token value
+		Dipcoin dcoinToDelete = this.coinDBService.getCoin(user.getId(), validDipcoin.get(), true);
+		if (dcoinToDelete == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.DIPCOIN_INVALID));
+		}
+
+		// only active dipcoin can be deleted
+		if (!DipcoinStatus.ACTIVE.equals(dcoinToDelete.getStatus())) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.DIPCOIN_NOT_ACTIVE));
+		}
+
+		if (DipcoinUsageType.TOLL.value() == dcoinToDelete.getUsageType()) {
+			dcoinToDelete.setClientTransactionId(httpServletContext.getClientTransactionId());
+		}
+
+		return deleteDipcoin(user, dcoinToDelete, Optional.empty());
+	}
+	
+	protected ResponseEntity deleteDipcoin(final User user, final Dipcoin dcoinToDelete,
+			final Optional<User> delegateUser) throws Exception, APIException {
+
+		String originIp = httpServletContext.getOriginIp();
+
+		final long startTime = DateTime.now(DateTimeZone.UTC).withTimeAtStartOfDay().getMillis();
+		final long startOfThisMonth = DateTime.now(DateTimeZone.UTC).dayOfMonth().withMinimumValue()
+				.withTimeAtStartOfDay().getMillis();
+		final long startOfThisYear = DateTime.now(DateTimeZone.UTC).dayOfYear().withMinimumValue()
+				.withTimeAtStartOfDay().getMillis();
+
+		// verify user and account are associated
+		CustomerAccount dcoinToDeleteCustomerAccount = dcoinToDelete.getCustomerAccount();
+		if (dcoinToDeleteCustomerAccount.getUser().getId() != user.getId()) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		// verify if dipcoin is expired.
+		if (new DateTime(Long.parseLong(dcoinToDelete.getExpiryTime())).isBeforeNow()) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.DIPCOIN_EXPIRED));
+		}
+
+		// get lien marked bank tx's associated with origin dipcoin
+		final List<Integer> bTxTypes = new LinkedList<>(
+				Arrays.asList(BankTransactionType.LIEN_MARK.value(), BankTransactionType.RELIEN_MARK.value()));
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching LienMark BankTransaction")
+				.data("dipcoinId", dcoinToDelete.getId()).format());
+		List<BankTransaction> bTxs = bankDBService.asyncGetTransactionsByDipcoinIdsAndTypes(
+				Arrays.asList(dcoinToDelete.getId()), bTxTypes, BankTransactionsStatus.SUCCESS.value()).get();
+		if (CollectionUtils.isEmpty(bTxs) && dcoinToDelete.getParentDipcoinId() <= 0) {
+			// if no BTX and a origin coin exit
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		}
+
+		/*
+		 * 1. In case of parent, lienMarkedDcoin == dcoinToDelete
+		 * 
+		 * 2. In case of child whose parent is processed on previous day offline phase,
+		 * lienMarkedDcoin = dcoinToDelete
+		 * 
+		 * 3. In case of child whose parent is not processed on previous day offline
+		 * phase. lienMarkedDcoin = ParentOf(dcoinToDelete)
+		 */
+		Dipcoin lienMarkedDcoin = dcoinToDelete;
+
+		// init new lien amount
+		BigDecimal lienAmount = new BigDecimal(0);
+
+		// if lien mark BTX doesnt exists for dcoinToDelete and is child dipcoin,
+		// process hierarchy
+		if (CollectionUtils.isEmpty(bTxs) && dcoinToDelete.getParentDipcoinId() > 0) {
+			LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Processing child dipcoin delete")
+					.format());
+			// fetch child parents e.g dIds = 4(child deleted) -> 3 -> 2(offline processed)
+			// -> 1(root)
+			List<Dipcoin> parents = new LinkedList<>();
+			List<Integer> parentIds = new LinkedList<>();
+			int pId = dcoinToDelete.getParentDipcoinId();
+			while (pId > 0) {
+				parentIds.add(pId);
+				LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching parent dcoin")
+						.data("parentDipcoinId", pId).format());
+				Dipcoin dc = coinDBService.getById(pId, false);
+				if (dc == null) {
+					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+							.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+				}
+				parents.add(dc);
+				pId = dc.getParentDipcoinId();
+
+				LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Fetching parent dcoin LienMark BTX").data("dipcoinId", dc.getId()).format());
+				// bTxs = bankDBService.asyncGetTransactions(dc, bTxTypes).get();
+
+				bTxs = bankDBService.asyncGetTransactionsByDipcoinIdsAndTypes(Arrays.asList(dc.getId()), bTxTypes,
+						BankTransactionsStatus.SUCCESS.value()).get();
+
+				// if marklien BXT encountered for a parent stop the search
+				if (!CollectionUtils.isEmpty(bTxs)) {
+					break;
+				}
+			}
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Fetched parent dipcoins " + Arrays.asList(parentIds)).format());
+
+			// fetch dipcoin to remove lien and lazy load customeraccount
+			lienMarkedDcoin = parents.remove(parents.size() - 1); // remove origin dipcoin from the list
+			// ie. dId = 1(origin)
+			Hibernate.initialize(lienMarkedDcoin.getCustomerAccount());
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Parent LienMarked dipcoin " + lienMarkedDcoin.getId()).format());
+
+			// fetch parent used/partially-used DTX's i.e dIds = 3 & 2
+			final List<Integer> dTxTypes = Arrays.asList(DipcoinTransactionType.COMPLETELY_USED.value(),
+					DipcoinTransactionType.PARTIALLY_USED.value());
+			List<DipcoinTransaction> parentDTxs = coinDBService.getTransactions(parentIds, dTxTypes, null, null);
+			if (CollectionUtils.isEmpty(parentDTxs)) {
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+						.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+			}
+
+			// fetch associated merchant recon records
+			List<Integer> parentDTxsIds = new LinkedList<>();
+			for (DipcoinTransaction dTx : parentDTxs) {
+				parentDTxsIds.add(dTx.getId());
+			}
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("parentDTxsIds", parentDTxsIds)
+					.format());
+			List<MerchantRecon> merchantRecons = merchantDBService.asyncGetMerchantRecons(parentDTxsIds, null, null)
+					.get();
+			Map<Integer, MerchantRecon> reconLookup = new HashMap<>();
+			if (!CollectionUtils.isEmpty(merchantRecons)) {
+				for (MerchantRecon recon : merchantRecons) {
+					reconLookup.put(recon.getDipcoinTransactionId(), recon);
+				}
+			}
+
+			// sum parents dtx amounts i.e dId's = 3 & 2
+			for (DipcoinTransaction dTx : parentDTxs) {
+				// @TODO - update constants
+				// if merchant recon issue, i.e non-0, dont consider dtx for remark
+				if (reconLookup.containsKey(dTx.getId()) && reconLookup.get(dTx.getId()).getIssue() != 0) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Skipping DTX")
+							.data("dId", dTx.getDipcoinId()).data("dTx", dTx.getId())
+							.data("MerchantReconIssue", reconLookup.get(dTx.getId()).getIssue())
+							.data("MerchantReconStatus", reconLookup.get(dTx.getId()).getStatus()).format());
+					continue;
+				}
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Processing DTX")
+						.data("dTx", dTx.getId()).data("amount", dTx.getAmount()).format());
+				lienAmount = lienAmount.add(dTx.getAmount());
+			}
+		}
+
+		// customer account associated with lienmarked dipcoin
+		CustomerAccount originDcoinCustomerAccount = lienMarkedDcoin.getCustomerAccount();
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetched LienMark CustomerAccount")
+				.data("dipcoinId", lienMarkedDcoin.getId())
+				.data("originDcoinCustomerAccount", originDcoinCustomerAccount.getId())
+				.data("bankReferenceId", originDcoinCustomerAccount.getBank().getReferenceId())
+				.data("BUID", originDcoinCustomerAccount.getBankUId()).format());
+
+		// Sort bTxs by requestTime in desc order.
+		Collections.sort(bTxs, (bTx1, bTx2) -> bTx2.getRequestTime().compareTo(bTx1.getRequestTime()));
+
+		// fetch the corresponding Lien Mark BTX to be processed
+		BankTransaction lienMarkedBTx = bTxs.get(0);
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetched LienMark BankTransaction")
+				.data("dipcoinId", lienMarkedDcoin.getId()).data("lienMarkedBTx", lienMarkedBTx.getId())
+				.data("lienAmount", lienAmount).format());
+
+		// remove previously marked lien
+		User owner = delegateUser != null ? delegateUser.orElse(user) : user;
+		removeLien(owner, originDcoinCustomerAccount, lienMarkedDcoin, dcoinToDelete, lienMarkedBTx, originIp);
+
+		// if child dipcoin deleted and lien mark amount set, mark a new lien
+		remarkLien(originDcoinCustomerAccount, lienMarkedDcoin, dcoinToDelete, lienMarkedBTx, lienAmount);
+
+		// mark the parent OR child dipcoin as cancelled
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Marking dcoin as cancelled")
+				.data("dipcoinId", dcoinToDelete.getId()).format());
+		Dipcoin updatedDcoin = this.coinDBService.updateCoin(dcoinToDelete, DipcoinStatus.CANCELLED.value());
+		if (updatedDcoin != null) {
+
+			if (Long.valueOf(dcoinToDelete.getIssueTime()) >= startTime) {
+				user.setPerDayLimit(user.getPerDayLimit().subtract(dcoinToDelete.getAmount()));
+				user.setPerMonthLimit(user.getPerMonthLimit().subtract(dcoinToDelete.getAmount()));
+				user.setPerYearLimit(user.getPerYearLimit().subtract(dcoinToDelete.getAmount()));
+			} else if (Long.valueOf(dcoinToDelete.getIssueTime()) >= startOfThisMonth) {
+				user.setPerMonthLimit(user.getPerMonthLimit().subtract(dcoinToDelete.getAmount()));
+				user.setPerYearLimit(user.getPerYearLimit().subtract(dcoinToDelete.getAmount()));
+			} else if (Long.valueOf(dcoinToDelete.getIssueTime()) >= startOfThisYear) {
+				user.setPerYearLimit(user.getPerYearLimit().subtract(dcoinToDelete.getAmount()));
+			}
+
+			this.userDBService.updateUser(user);
+
+			CustomerDipcoinResponse response = new CustomerDipcoinResponse();
+			response.setOsta(updatedDcoin.getCoin());
+			response.addHeaderCode(HeaderCode.DIPCOIN_DELETED);
+			response.setBankName(dcoinToDeleteCustomerAccount.getBank().getName());
+			response.setAmount(updatedDcoin.getAmount().toString());
+			response.setIssueTime(updatedDcoin.getIssueTime());
+			response.setExpiryTime(updatedDcoin.getExpiryTime());
+			response.setUpdateTime(updatedDcoin.getUpdateTime());
+
+			// initialize bank if not done.
+			if (!Hibernate.isInitialized(originDcoinCustomerAccount.getBank())) {
+				Hibernate.initialize(originDcoinCustomerAccount.getBank());
+			}
+
+			Bank bank = originDcoinCustomerAccount.getBank();
+
+			// send email to user which do not have customer account of virtual bank//
+			/*
+			 * as virtual bank and fastag can only have one osta at a time during auto topup
+			 * lien remove is done this cancellation mail and message should not go to
+			 * customer as it might confuse him or her as it is not authorised by him or her
+			 * but internal system does that
+			 * 
+			 */
+			if (applicationProperties.enableSMS() && !(BankType.VIRTUAL_BANK.equals(bank.getType())
+					|| APIUtils.smsEmailAreNotAllowed(updatedDcoin.getUsageType()))) {
+				if (user.getIsEmailVerified() == BooleanStatus.YES.value()
+						&& !emailUtils.sendDeleteDipcoinEmail(user, dcoinToDeleteCustomerAccount, response)) {
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message(
+							"Failed to send email to user " + user.getId() + " for dipcoin " + updatedDcoin.getId())
+							.format());
+				}
+
+				// send SMS
+				if (!applicationProperties.getAwsSMSClient() && !smsClient.sendSms(user.getPhone(),
+						Templates.CustomerDeleteDipcoin.format(response.getOsta(), response.getUpdateTime()),
+						httpServletContext.getClientFeatureFlags().smsEnabled())) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to send SMS")
+							.data("phone", user.getPhone()).data("template", Templates.CustomerDeleteDipcoin
+									.format(response.getOsta(), response.getUpdateTime()))
+							.format());
+				}
+
+				if (applicationProperties.getAwsSMSClient()) {
+
+					NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+					notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+					if (!notificationResource.sendSms(user.getPhone(),
+							Templates.CustomerDeleteDipcoin.format(response.getOsta(), response.getUpdateTime()),
+							httpServletContext.getClientFeatureFlags().smsEnabled(), notificationRequestContext)) {
+
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to send SMS")
+								.data("phone", user.getPhone()).data("template", Templates.CustomerDeleteDipcoin
+										.format(response.getOsta(), response.getUpdateTime()))
+								.format());
+					}
+				}
+			}
+			// register metric
+			dipcoinMetricRegistry.dipcoinDeleted().increment();
+			return ResponseEntity.ok(response);
+		}
+
+		LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to delete dipcoin").format());
+		// throw exception to initiate rollback
+		dipcoinMetricRegistry.dipcoinFailedToDelete().increment();
+		throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR, APIResponse.error(HeaderCode.INTERNAL_ERROR));
+	}
+	
+	public Either<ResponseEntity, String> validateDipcoin(String dcoin, final User user) {
+		// parse token
+		Pair<String, String> dcoinSegments = CoreUtils.parseDipcoinToken(dcoin);
+		if (dcoinSegments == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid Dipcoin")
+					.data("dcoin", dcoin).format());
+			return Either.left(
+					ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.DIPCOIN_INVALID)));
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("DcoinSegments")
+				.data("phone", dcoinSegments.getLeft()).data("token", dcoinSegments.getRight()).format());
+
+		// validate token belongs to the user
+		if (!user.getPhone().equalsIgnoreCase(dcoinSegments.getLeft())) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Unauthorized Dipcoin")
+					.data("userPhone", user.getPhone()).data("phone", dcoinSegments.getLeft()).format());
+			return Either.left(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+					.body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED)));
+		}
+
+		return Either.right(dcoinSegments.getRight());
+	}
+	
+	public void removeLien(final User user, final CustomerAccount originDcoinCustomerAccount,
+			final Dipcoin lienMarkedDcoin, final Dipcoin dcoinToDelete, final BankTransaction lienMarkedBTx,
+			String originIp)
+			throws APIException, BankServiceException, InterruptedException, ExecutionException, IOException {
+
+		String requestTime = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
+
+		RemoveLienRequest bRequest = new RemoveLienRequest(originDcoinCustomerAccount.getBank().getReferenceId(),
+				originDcoinCustomerAccount.getBank().getCode());
+		bRequest.setTransactionType(Integer.toString(BankTransactionType.LIEN_REMOVAL.value()));
+		bRequest.setBankUID(originDcoinCustomerAccount.getBankUId());
+		if (bankAPIServices.getBankProperties(originDcoinCustomerAccount.getBank().getReferenceId())
+				.isOstaSideAccountVerification()) {
+			bRequest.setAmount("0");
+		} else {
+			bRequest.setAmount(lienMarkedBTx.getAmount().toString());
+		}
+		bRequest.setCbsJournalNumber(lienMarkedBTx.getCBSReferenceID());
+		bRequest.setCbsDate(lienMarkedBTx.getCBSLienDate());
+		String dipcoinReferenceNumber = bankUtils.generateDipcoinToBankReferenceNumber(
+				originDcoinCustomerAccount.getBank().getReferenceId(), bRequest.getOperation(),
+				BankTransactionType.LIEN_REMOVAL.value());
+		bRequest.setDipcoinReferenceNumber(dipcoinReferenceNumber);
+		bRequest.setCurrency(Currency.INDIA.value());
+		bRequest.setComment(Comment.LIENREMOVE.value());
+		bRequest.setCbsDate(lienMarkedBTx.getCBSLienDate());
+		// @Populate pending fields
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankRequest", bRequest).format());
+		BankRequestContext bankRequestContext = new BankRequestContext();
+		bankRequestContext.setTraceId(httpServletContext.getTraceId());
+		Future<RemoveLienResponse> bResponseTask = this.bankAPIServices.removeLien(bankRequestContext, bRequest);
+
+		// init bank transaction
+		BankTransaction bTx = new BankTransaction();
+		bTx.setType(BankTransactionType.LIEN_REMOVAL.value());
+		bTx.setDipcoinId(lienMarkedDcoin.getId()); // remove lien on the lien marked dipcoin
+		bTx.setCustomerAccountId(originDcoinCustomerAccount.getId());
+		bTx.setDipcoinTransactionRefId(dipcoinReferenceNumber);
+		bTx.setAmount(lienMarkedBTx.getAmount());
+		bTx.setBankId(originDcoinCustomerAccount.getBank().getId());
+
+		RemoveLienResponse bResponse = bResponseTask.get();
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankResponse", bResponse)
+				.data("DipcoinReferenceNumber", dipcoinReferenceNumber).format());
+
+		/*
+		 * If success for Bank, mark Osta as deleted. If logical failure from Bank, keep
+		 * Osta active. For all other failures, mark Osta as deleted.
+		 */
+		if (bResponse == null || (!BankResponseStatus.SUCCESS.code().equals(bResponse.getBankResponseCode()))
+				|| !dipcoinReferenceNumber.equals(bResponse.getDipcoinReferenceNumber())) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to remove lien").format());
+			bTx.setStatus(BankTransactionsStatus.FAILED.value());
+			if (bResponse != null) {
+				bTx.setRequestTime(bResponse.getRequestTime());
+				bTx.setResponseTime(bResponse.getResponseTime());
+				bTx.setBankTransactionRefId(bResponse.getBankTransactionReferenceNumber());
+				bTx.setRawBankResponse(bResponse.getBankResponseDesc() != null ? bResponse.getBankResponseDesc()
+						: bResponse.getErrorMsg());
+				bTx.setBankResponseCode(bResponse.getBankResponseCode());
+			}
+			if (this.bankDBService.asyncAddTransaction(bTx).get() == null) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Failed to add Bank Transaction").data("transaction", bTx).format());
+			}
+
+			// throw exception to initiate rollback
+			if (bResponse == null) {
+				throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+						APIResponse.error(HeaderCode.BANK_FAILED_TO_REMOVE_LIEN));
+			}
+
+			if (bResponse.getBankResponseDesc() != null
+					&& StringUtils.isNotBlank(
+							bankAPIServices.getBankProperties(originDcoinCustomerAccount.getBank().getReferenceId())
+									.getHoldNotExistCode())
+					&& (bResponse.getBankResponseCode().toUpperCase()
+							.contains(bankAPIServices
+									.getBankProperties(originDcoinCustomerAccount.getBank().getReferenceId())
+									.getHoldNotExistCode().toUpperCase())
+							|| bResponse.getBankResponseDesc().toUpperCase()
+									.contains(bankAPIServices
+											.getBankProperties(originDcoinCustomerAccount.getBank().getReferenceId())
+											.getHoldNotExistCode().toUpperCase()))) {
+
+				ResponseEntity lienMarkResponse = dipcoinBankHelper.markLien(user, originDcoinCustomerAccount,
+						lienMarkedDcoin, lienMarkedBTx, bankRequestContext);
+
+				if (lienMarkResponse.getStatusCodeValue() == HttpStatus.OK.value()) {
+					throw new APIException(HttpStatus.BAD_REQUEST, (APIResponse) lienMarkResponse.getBody());
+				}
+
+				throw new APIException(HttpStatus.BAD_REQUEST,
+						APIResponse.error(HeaderCode.BANK_FAILED_HOLD_DOES_NOT_EXIT));
+			}
+
+			// throw exception to initiate rollback
+			throw new APIException(HttpStatus.BAD_REQUEST, APIResponse.error(HeaderCode.BANK_FAILED_TO_REMOVE_LIEN));
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Bank Services Lien Removal")
+				.data("requestTime", bResponse.getRequestTime()).data("responseTime", bResponse.getResponseTime())
+				.format());
+
+		// add dipcoin transaction for dipcoin to be deleted
+		DipcoinTransaction dTx = initiateDipcoinTransaction(dcoinToDelete, user, originIp);
+		dTx.setType(DipcoinTransactionType.DELETE_DIPCOIN.value());
+		dTx.setDipcoinTransactionRefId(bResponse.getDipcoinReferenceNumber());
+		dTx.setStatus(DipcoinTransactionsStatus.SUCCESS.value());
+		dTx.setRequestTime(requestTime);
+		dTx.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+		dTx.setSource(TransactionSource.DEFAULT.value());
+		if (this.coinDBService.asyncAddTransaction(dTx).get() == null) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Failed to add Dipcoin Transaction").data("transaction", dTx).format());
+		}
+
+		// populate bank transaction
+		bTx.setRawBankRequest(bResponse.getRawRequest());
+		bTx.setBankTransactionRefId(bResponse.getBankTransactionReferenceNumber());
+		bTx.setRawBankResponse(bResponse.getRawData());
+		bTx.setBankResponseCode(bResponse.getBankResponseCode());
+		bTx.setStatus(BankTransactionsStatus.SUCCESS.value());
+		bTx.setRequestTime(bResponse.getRequestTime());
+		bTx.setResponseTime(bResponse.getResponseTime());
+
+		if (!StringUtils.isEmpty(bResponse.getCbsJournalNumber()))
+			bTx.setCBSReferenceID(bResponse.getCbsJournalNumber());
+
+		if (dTx != null) {
+			bTx.setDipcoinTransactionId(dTx.getId());
+		}
+		if (this.bankDBService.asyncAddTransaction(bTx).get() == null) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to add Bank Transaction")
+					.data("transaction", bTx).format());
+		}
+	}
+	
+	public void remarkLien(final CustomerAccount originDcoinCustomerAccount, final Dipcoin lienMarkedDcoin,
+			final Dipcoin dcoinToDelete, final BankTransaction lienMarkedBTx, BigDecimal lienAmount)
+			throws InterruptedException, ExecutionException, BankServiceException, APIException, IOException {
+
+		if (dcoinToDelete.getParentDipcoinId() > 0 && lienAmount.doubleValue() > 0) {
+			LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Remarking lien of amount " + lienAmount).format());
+
+			String dipcoinReferenceNumber = bankUtils.generateDipcoinToBankReferenceNumber(
+					originDcoinCustomerAccount.getBank().getReferenceId(), Operation.MARK_LIEN,
+					BankTransactionType.LIEN_MARK.value());
+
+			MarkLienRequest bRequest = new MarkLienRequest(originDcoinCustomerAccount.getBank().getReferenceId(),
+					originDcoinCustomerAccount.getBank().getCode());
+			bRequest.setAmount(CoreUtils.round2(lienAmount).toString());
+			bRequest.setTransactionType(Integer.toString(BankTransactionType.LIEN_MARK.value()));
+			bRequest.setBankUID(originDcoinCustomerAccount.getBankUId());
+			bRequest.setDipcoinReferenceNumber(dipcoinReferenceNumber);
+			bRequest.setCurrency(Currency.INDIA.value());
+			bRequest.setComment(Comment.LIENMARK.value());
+			bRequest.setCbsJournalNumber(lienMarkedBTx.getCBSReferenceID());
+			bRequest.setUserId(String.valueOf(originDcoinCustomerAccount.getUser().getId()));
+			bRequest.setCardId(String.valueOf(originDcoinCustomerAccount.getUserCardId()));
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankRequest", bRequest).format());
+			BankRequestContext bankRequestContext = new BankRequestContext();
+			bankRequestContext.setTraceId(httpServletContext.getTraceId());
+			MarkLienResponse bResponse = this.bankAPIServices.markLien(bankRequestContext, bRequest).get();
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankResponse", bResponse)
+					.data("DipcoinReferenceNumber", dipcoinReferenceNumber).format());
+
+			// clone existing bank Tx
+			BankTransaction nBTx = new BankTransaction();
+			nBTx.setDipcoinId(lienMarkedDcoin.getId());
+			nBTx.setAmount(lienAmount);
+			nBTx.setType(BankTransactionType.RELIEN_MARK.value());
+			nBTx.setDipcoinTransactionRefId(dipcoinReferenceNumber);
+			nBTx.setCustomerAccountId(originDcoinCustomerAccount.getId());
+			nBTx.setBankId(originDcoinCustomerAccount.getBank().getId());
+
+			// @TODO - system failure
+			if (bResponse == null || !BankResponseStatus.SUCCESS.code().equals(bResponse.getBankResponseCode())
+					|| !dipcoinReferenceNumber.equals(bResponse.getDipcoinReferenceNumber())) {
+				LOG.error(
+						LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to mark lien").format());
+
+				// write failed bank tx
+				nBTx.setStatus(BankTransactionsStatus.FAILED.value());
+				if (bResponse != null) {
+					nBTx.setRequestTime(bResponse.getRequestTime());
+					nBTx.setResponseTime(bResponse.getResponseTime());
+					nBTx.setBankTransactionRefId(bResponse.getBankTransactionReferenceNumber());
+					nBTx.setRawBankResponse(bResponse.getBankResponseDesc() != null ? bResponse.getBankResponseDesc()
+							: bResponse.getErrorMsg());
+					nBTx.setBankResponseCode(bResponse.getBankResponseCode());
+				}
+				LOG.debug(
+						LogFormatter.instance(httpServletContext.getTraceId()).data("BankTransaction", nBTx).format());
+				if (this.bankDBService.addTransaction(nBTx) == null) {
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("Failed to add Bank Transaction").data("transaction", nBTx).format());
+				}
+
+				// throw exception to initiate rollback
+				throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+						APIResponse.error(HeaderCode.BANK_FAILED_TO_MARK_LIEN));
+			}
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Bank Services Mark Lien")
+					.data("requestTime", bResponse.getRequestTime()).data("responseTime", bResponse.getResponseTime())
+					.format());
+
+			// check conditions which are mandated for dipcoin creating
+			if (StringUtils.isEmpty(bResponse.getCbsJournalNumber())) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Failed to obtain CbsJournalNumber").format());
+				// throw exception to initiate rollback
+				throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR, APIResponse.error(HeaderCode.INTERNAL_ERROR));
+			}
+
+			// populate bank transaction
+			nBTx.setRawBankRequest(bResponse.getRawRequest());
+			nBTx.setBankTransactionRefId(bResponse.getBankTransactionReferenceNumber());
+			nBTx.setRawBankResponse(bResponse.getRawData());
+			nBTx.setBankResponseCode(bResponse.getBankResponseCode());
+			nBTx.setStatus(BankTransactionsStatus.SUCCESS.value());
+			nBTx.setRequestTime(bResponse.getRequestTime());
+			nBTx.setResponseTime(bResponse.getResponseTime());
+			nBTx.setCBSReferenceID(bResponse.getCbsJournalNumber());
+			// reassign origin Dipcoin TX to new Bank Tx
+			nBTx.setDipcoinTransactionId(lienMarkedBTx.getDipcoinTransactionId());
+			nBTx.setCBSLienDate(bResponse.getCbsDate());
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankTransaction", nBTx).format());
+			if (this.bankDBService.addTransaction(nBTx) == null) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Failed to add Bank Transaction").data("transaction", nBTx).format());
+			}
+		}
 	}
 
 }
