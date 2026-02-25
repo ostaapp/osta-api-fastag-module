@@ -9,18 +9,18 @@ import lombok.experimental.Accessors;
 @Getter
 public class AspectContext {
 
-  public AspectContext(boolean runAudit) {
-    this.runAudit = runAudit;
-  }
+	public AspectContext(boolean runAudit) {
+		this.runAudit = runAudit;
+	}
 
-  private String audit;
+	private String audit;
 
-  private String userId;
+	private String userId;
 
-  private RequestMetadata requestMetadata;
-  
-  private String customerAccountId;
-  
-  private boolean runAudit;
-  
+	private RequestMetadata requestMetadata;
+
+	private String customerAccountId;
+
+	private boolean runAudit;
+
 }
