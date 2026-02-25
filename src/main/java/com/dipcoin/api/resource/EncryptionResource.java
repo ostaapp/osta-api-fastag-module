@@ -9,4 +9,9 @@ public class EncryptionResource {
 		return null;
 	}
 
+	public String decrypt(User user, Object object, Object object2, String encDcoin) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 }
