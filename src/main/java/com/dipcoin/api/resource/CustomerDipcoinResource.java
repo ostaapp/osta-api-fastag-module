@@ -40,16 +40,13 @@ import com.dipcoin.api.commons.HeaderCode;
 import com.dipcoin.api.config.ApplicationProperties;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.fraudMgmt.ProcessEvent;
+import com.dipcoin.api.fraudMgmt.UserEventResource;
 import com.dipcoin.api.model.APICustomization;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.AspectContext;
 import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.api.model.CustomerDipcoinResponse;
-import com.dipcoin.api.model.DipcoinResponse;
 import com.dipcoin.api.model.DipcoinThreadLocal;
-import com.dipcoin.api.model.Pagination;
-import com.dipcoin.api.model.PartnerProcessDipcoinRequest;
-import com.dipcoin.api.model.PartnerProcessDipcoinResponse;
 import com.dipcoin.api.fraudMgmt.EventUtils;
 import com.dipcoin.api.model.RequestMetadata;
 import com.dipcoin.api.utils.RechargeConstants;
@@ -59,11 +56,8 @@ import com.dipcoin.bank.services.comm.MarkLienRequest;
 import com.dipcoin.bank.services.comm.MarkLienResponse;
 import com.dipcoin.bank.services.comm.RemoveLienRequest;
 import com.dipcoin.bank.services.comm.RemoveLienResponse;
-import com.dipcoin.bank.services.comm.TransactionStatusRequest;
-import com.dipcoin.bank.services.comm.TransactionStatusResponse;
 import com.dipcoin.bank.services.utils.BankConstants.BankResponseStatus;
 import com.dipcoin.bank.services.utils.BankConstants.Comment;
-import com.dipcoin.bank.services.utils.BankProperties;
 import com.dipcoin.bank.services.utils.BankRequestContext;
 import com.dipcoin.bank.services.utils.BankServiceException;
 import com.dipcoin.bank.services.utils.BankUtils;
@@ -73,12 +67,10 @@ import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.commons.SmsClient;
 import com.dipcoin.commons.SmsClient.Templates;
 import com.dipcoin.commons.UserUtil;
-import com.dipcoin.commons.qrcode.QRCodeUtils;
 import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.CustomerDBService;
 import com.dipcoin.db.services.DipcoinDBService;
 import com.dipcoin.db.services.MerchantDBService;
-import com.dipcoin.db.services.RechargeDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants;
 import com.dipcoin.db.services.commons.DBConstants.BankTransactionType;
@@ -104,7 +96,6 @@ import com.dipcoin.db.services.model.Recharge;
 import com.dipcoin.db.services.model.User;
 import com.dipcoin.notification.services.model.NotificationRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.dipcoin.db.services.UserDBService;
 import io.vavr.control.Either;
 
 @Component("customerDipcoinResource")
@@ -176,6 +167,16 @@ public class CustomerDipcoinResource {
 
 	@Autowired
 	private BankDBService bankDBService;
+	
+	
+	  public DipcoinResource getDipcoinResource() {    
+		    return this.dipcoinResource;
+		  }
+	
+	  public DipcoinBankHelper getDipcoinBankHelper() {    
+		    return this.dipcoinBankHelper;
+	  }
+	
 
 	public ResponseEntity createDipcoin(final User user, final CustomerDipcoinRequest createReq,
 			boolean rollbackDipcoinTxs) throws Exception, APIException {

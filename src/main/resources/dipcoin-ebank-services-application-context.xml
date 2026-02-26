@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<!-- scans the classpath for annotated components (including @Repostory 
+		and @Service that will be auto-registered as Spring beans -->
+	<context:component-scan
+		base-package="com.dipcoin" />
+
+	<!-- Define Client Factory bean -->
+	<bean id="bankClientFactory"
+		class="org.springframework.beans.factory.config.ServiceLocatorFactoryBean">
+		<property name="serviceLocatorInterface"
+			value="com.dipcoin.bank.services.client.BankClientFactory" />
+	</bean>
+	
+	<bean
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations"
+			value="classpath:dipcoin-ebank-services-${spring.profiles.active}.properties" />
+		<property name="ignoreUnresolvablePlaceholders" value="true" />
+	</bean>
+
+	<bean id="bankPropertiesFactory"
+		class="org.springframework.beans.factory.config.ServiceLocatorFactoryBean">
+		<property name="serviceLocatorInterface"
+			value="com.dipcoin.bank.services.client.BankPropertiesFactory" />
+	</bean>
+
+	<!-- Define ALL Common beans -->
+	<!-- Bank Key Store -->
+	<bean id="partnerKeyStore"
+		class="com.dipcoin.bank.services.utils.PartnerKeyStore"
+		init-method="init">
+		<property name="secretKeyStorePath"
+			value="classpath:keys/bank_keys_${spring.profiles.active}.p12" />
+		<property name="secretKeyStoreType" value="PKCS12" />
+		<property name="secretKeyStorePass" value="password" /> <!-- Dev password -->
+		<property name="secretKeyStoreKeyPass" value="password" /> <!-- Dev password -->
+		<property name="instaODKeyStorePath"
+			value="classpath:keys/partners_publicKey.p12" />
+		<property name="instaODKeyStorePass" value="password" /> <!-- Dev password -->
+		<property name="instaODKeyStoreKeyPass" value="password" /> <!-- Dev password -->
+		<property name="ostaKeyStorePath"
+			value="classpath:keys/ostaappselfsigned.jks" />
+	</bean>
+
+	<!-- default proxy bean -->
+	<bean id="httpProxy" class="com.dipcoin.commons.HttpsUtils.Proxy" />
+
+	<beans profile="!unit">
+
+		<!-- Import ALL bank configurations -->
+		<import
+			resource="classpath*:dipcoin-ebank-B*-application-context.xml" />
+		<import
+			resource="classpath*:dipcoin-virtualBank-services-application-context.xml" />
+
+		<beans profile="!dev">
+			<!-- -->
+			<!-- The EncryptablePropertyPlaceholderConfigurer will read the -->
+			<!-- .properties files and make their values accessible as ${var} -->
+			<!-- -->
+			<!-- Our "configurationEncryptor" bean (which implements -->
+			<!-- org.jasypt.encryption.StringEncryptor) is set as a constructor arg. -->
+			<!-- -->
+			<bean id="ebankPropertyConfigurer"
+				class="org.jasypt.spring3.properties.EncryptablePropertyPlaceholderConfigurer">
+				<constructor-arg>
+					<bean
+						class="org.jasypt.encryption.pbe.StandardPBEStringEncryptor">
+						<property name="algorithm">
+							<value>PBEWithMD5AndDES</value>
+						</property>
+						<property name="password">
+							<value>#{systemProperties['BKS']}</value>
+						</property>
+					</bean>
+				</constructor-arg>
+				<property name="locations">
+					<list>
+						<value>${EBANK_CONFIG:classpath:dipcoin-ebank-services.properties}
+						</value>
+					</list>
+				</property>
+				<!-- @NOTE - MUST have property. Since EncryptablePropertyPlaceholderConfigurer 
+					will be used across multiple components, not setting this property will cause 
+					the next beans in line not load correctly, resulting in ${var} not found 
+					error -->
+				<property name="ignoreUnresolvablePlaceholders"
+					value="true" />
+			</bean>
+
+		</beans>
+
+		<beans profile="uat, prod">
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.bank.services.utils.PartnerKeyStore.initProxy" />
+				<property name="arguments">
+					<list>
+						<value>cedge.proxy.in</value>
+						<value>3128</value>
+						<value>false</value>
+					</list>
+				</property>
+			</bean>
+		</beans>
+
+		<beans profile="prod">
+			<bean id="partnerKeyStore"
+				class="com.dipcoin.bank.services.utils.PartnerKeyStore"
+				init-method="init">
+				<property name="secretKeyStorePath" 
+					value="classpath:keys/bank_keys_${spring.profiles.active}.p12"/>
+					
+					<!-- value="${com.dipcoin.bank.services.utils.PartnerKeyStore.keystorepath}" -->
+				<property name="secretKeyStoreType"
+					value="${com.dipcoin.bank.services.utils.PartnerKeyStore.keystoretype}" />
+				<property name="secretKeyStorePass"
+					value="${com.dipcoin.bank.services.utils.PartnerKeyStore.keystorepass}" />
+				<property name="secretKeyStoreKeyPass"
+					value="${com.dipcoin.bank.services.utils.PartnerKeyStore.keystorekeypass}" />
+					
+				<property name="instaODKeyStorePath"
+					value="classpath:keys/partners_publicKey.p12" />
+				<property name="instaODKeyStorePass" value="password" /> 
+				<property name="instaODKeyStoreKeyPass" value="password" />
+				<!-- <property name="instaODKeyStorePath"
+					value="classpath:keys/partners_prod_publicKey.p12" />
+				<property name="instaODKeyStorePass" 
+				value="${com.dipcoin.bank.services.utils.PartnerKeyStore.keystorekeypass}" /> 
+				<property name="instaODKeyStoreKeyPass" 
+				value="${com.dipcoin.bank.services.utils.PartnerKeyStore.keystorekeypass}" /> --> 
+				<property name="ostaKeyStorePath"
+			value="classpath:keys/ostaappselfsigned_prod.jks" />
+			</bean>
+		</beans>
+	</beans>
+	
+	
+
+	<beans profile="unit">
+		<!-- Import ALL bank configurations -->
+		<import
+			resource="classpath*:dipcoin-ebank-B000000000000-application-context.xml" />
+
+		<bean id="partnerKeyStore"
+			class="com.dipcoin.bank.services.utils.PartnerKeyStore"
+			init-method="init">
+			<property name="secretKeyStorePath"
+				value="classpath:keys/bank_keys_dev.p12" />
+			<property name="secretKeyStoreType" value="PKCS12" />
+			<property name="secretKeyStorePass" value="password" />
+			<property name="secretKeyStoreKeyPass" value="password" />
+		</bean>
+	</beans>
+
+</beans>

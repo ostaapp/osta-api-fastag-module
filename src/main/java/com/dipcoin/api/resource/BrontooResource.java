@@ -4,90 +4,145 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
-import org.apache.commons.collections4.CollectionUtils;
+import java.util.Set;
 
 import javax.xml.bind.JAXB;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.commons.APIUtils;
 import com.dipcoin.api.commons.HeaderCode;
+import com.dipcoin.api.commons.TollEmailUtils;
 import com.dipcoin.api.commons.TollProperties;
+import com.dipcoin.api.config.ApplicationProperties;
 import com.dipcoin.api.filter.HttpServletContext;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTimeZone;
-
-import com.dipcoin.api.model.*;
+import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.CustomerBankVehicleVerificationResponse;
+import com.dipcoin.api.model.Detail;
+import com.dipcoin.api.model.Head;
+import com.dipcoin.api.model.Resp;
+import com.dipcoin.api.model.Tag;
+import com.dipcoin.api.model.TagList;
+import com.dipcoin.api.model.Time;
+import com.dipcoin.api.model.TollMngTagExceptionRequest;
+import com.dipcoin.api.model.TollMngTagExceptionResponse;
+import com.dipcoin.api.model.TollNetcDetailsRequest;
+import com.dipcoin.api.model.TollNetcDetailsResponse;
+import com.dipcoin.api.model.TollNetcSyncTimeRequest;
+import com.dipcoin.api.model.TollNetcSyncTimeResponse;
+import com.dipcoin.api.model.TollTagRequest;
+import com.dipcoin.api.model.TollTagResponse;
+import com.dipcoin.api.model.Txn;
+import com.dipcoin.api.model.Vehicle;
+import com.dipcoin.api.model.VehicleDetails;
 import com.dipcoin.commons.CoreUtils;
 import com.dipcoin.commons.LogFormatter;
+import com.dipcoin.commons.SmsClient;
+import com.dipcoin.commons.SmsClient.Templates;
 import com.dipcoin.db.services.BankDBService;
+import com.dipcoin.db.services.MerchantDBService;
 import com.dipcoin.db.services.TollDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants;
+import com.dipcoin.db.services.commons.DBConstants.MerchantBusinessSegment;
 import com.dipcoin.db.services.commons.DBConstants.TollTagExcCodeStatus;
 import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.Epc;
+import com.dipcoin.db.services.model.Merchant;
+import com.dipcoin.db.services.model.TollTag;
 import com.dipcoin.db.services.model.User;
+import com.dipcoin.notification.services.model.NotificationRequestContext;
 import com.dipcoin.partner.toll.commons.TollConstant;
 import com.dipcoin.partner.toll.commons.TollHttpsServices;
 import com.dipcoin.partner.toll.commons.TollSignatureGenerationServices;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.joda.time.DateTime;
+
 
 @Component("brontooResource")
-@Transactional(rollbackFor = { Exception.class, APIException.class }, propagation = Propagation.REQUIRES_NEW)
+@Transactional(rollbackFor = {Exception.class, APIException.class},
+    propagation = Propagation.REQUIRES_NEW)
 public class BrontooResource {
 
-	private static final Logger LOG = LogManager.getLogger(BrontooResource.class);
-	private final static ObjectMapper objectMapper = new ObjectMapper();
-	private static final String dateFormatter = "yyyy-MM-dd hh:mm:ss";
-	private static final TimeZone dateTimeZone = TimeZone.getTimeZone("Asia/Kolkata");
-	private static final BigDecimal zero = new BigDecimal("0.00");
-	private final static SecureRandom randomGenerator = new SecureRandom();
+  private static final Logger LOG = LogManager.getLogger(BrontooResource.class);
+  private final static ObjectMapper objectMapper = new ObjectMapper();
+  
+  @Autowired
+  private MerchantDBService merchantDBService;
 
-	@Autowired
-	private TollHttpsServices tollHttpsServices;
+  @Autowired
+  private UserDBService userDBService;
 
-	@Autowired
-	private TollSignatureGenerationServices tollSignatureGenerationServices;
+  @Autowired
+  private BankDBService bankDBService;
 
-	@Autowired
-	private TollProperties tollProperties;
+  @Autowired
+  @Lazy
+  private HttpServletContext httpServletContext;
 
-	@Autowired
-	private BankDBService bankDBService;
-	
-	@Autowired
-	private UserDBService userDBService;
-	
-	@Autowired
-	private TollDBService tollDBService;
+  @Autowired
+  private TollHttpsServices tollHttpsServices;
 
-	@Autowired
-	@Lazy
-	private HttpServletContext httpServletContext;
+  @Autowired
+  private TollSignatureGenerationServices tollSignatureGenerationServices;
+
+  @Autowired
+  private TollDBService tollDBService;
+
+  @Autowired
+  private TollProperties tollProperties; 
+
+  @Autowired
+  private ApplicationProperties applicationProperties;
+  
+  @Autowired
+  private TollEmailUtils tollEmailUtils;
+  
+  @Autowired
+  private SmsClient smsClient;
+
+  @Autowired
+  private NotificationResource notificationResource;
+  
+  @Autowired
+  CustomerDipcoinResource customerDipcoinResource;
+  
+  
+  @Autowired
+  @Qualifier("debitsReqpayRabbitTemplate")
+  private RabbitTemplate debitsRabbitTemplate;
+
+ 
+  public void setHttpServletContext(HttpServletContext httpServletContext) {
+    this.httpServletContext = httpServletContext;
+  }
 
 	public ResponseEntity syncTime(Bank bank) throws Exception {
 		TollNetcSyncTimeRequest tollNetcSyncTimeRequest = new TollNetcSyncTimeRequest();
@@ -648,6 +703,527 @@ public class BrontooResource {
 		}
 		return null;
 
+	}
+	
+	public ResponseEntity updateExceptionList(TollTag tollTag_obj, String operation,
+			final TollTagRequest tollTagRequest) throws Exception, APIException {
+	  
+	  /*
+      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+          .message("In updateExceptionList method").data("tollTag_obj", tollTag_obj)
+          .data("operation", operation).data("TollTagRequest", tollTagRequest).format());
+      */
+	  
+		TollMngTagExceptionRequest tollMngTagExceptionRequest = new TollMngTagExceptionRequest();
+		TollMngTagExceptionResponse tollMngTagExceptionResponse = new TollMngTagExceptionResponse();
+		List<TollMngTagExceptionResponse> tollMngTagExceptionResponseList = new ArrayList<>();
+		String refUrl = StringUtils.EMPTY;
+
+		List<Merchant> merchants = merchantDBService
+				.asyncFindMerchantByBusinessSegment(MerchantBusinessSegment.TOLL.value()).get();
+
+		if (CollectionUtils.isEmpty(merchants)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("merchant is null").format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.MERCHANT_DOESNT_EXIST));
+		}
+
+		List<TollTag> tollTags = tollTag_obj != null ? Arrays.asList(tollTag_obj)
+				: tollDBService.findTollTagByStatusOrderByBankId(
+						String.valueOf(DBConstants.TollTagApprovalStatus.ACTIVE.value()));
+
+		Set<Integer> bankIds = new HashSet<Integer>();
+		
+		/*
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+	          .message("In updateExceptionList before for loop").data("tollTags", tollTags).format());
+        */
+		
+		for (TollTag tollTag : tollTags) {
+			if(tollTag.getWalletBankId()> NumberUtils.INTEGER_ZERO){
+				bankIds.add(tollTag.getWalletBankId());
+			} else {
+				bankIds.add(tollTag.getBankId());
+			}
+			
+		}
+		
+		/*
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+            .message("In updateExceptionList after for loop").data("bankIds", bankIds).format());
+        */
+
+		if (!CollectionUtils.isEmpty(tollTags)) {
+
+			for (Integer bankId : bankIds) {
+				Bank bank = bankDBService.getBank(bankId);
+				if (bank != null) {
+					ResponseEntity responseEntity = syncTime(bank);
+
+					if (responseEntity.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+						return responseEntity;
+					}
+
+					TollNetcSyncTimeResponse tollNetcSyncTimeResponse = (TollNetcSyncTimeResponse) responseEntity
+							.getBody();
+
+					String[] bankInfos = tollProperties.getBankInfo().split(",");
+
+					for (String bankInfo : bankInfos) {
+						String[] info = bankInfo.split("~");
+						if (info[2].equalsIgnoreCase(bank.getIin())) {
+							refUrl = info[3];
+						}
+					}
+
+					Txn txn = new Txn();
+
+					Head head = new Head();
+					head.setVer(TollConstant.VERSION);
+					SimpleDateFormat formatter = new SimpleDateFormat(TollConstant.TS_DATE_FORMAT);
+					Date date = formatter.parse(tollNetcSyncTimeResponse.getResp().getTs());
+					head.setTs(formatter.format(date));
+					txn.setTs(formatter.format(date));
+					head.setOrgId(bank.getOrgId());
+
+					formatter = new SimpleDateFormat(TollConstant.MSG_DATE_FORMAT);
+					date = new Date(System.currentTimeMillis());
+					head.setMsgId(bank.getOrgId() + formatter.format(date).toUpperCase());
+
+					String dipcoinReferenceNumber = CoreUtils.randomAlphaString(22);
+
+					txn.setId(dipcoinReferenceNumber);
+					txn.setNote(TollConstant.MANAGE_EXCEPTION_NOTE);
+					txn.setOrgTxnId(bank.getOrgId() + dipcoinReferenceNumber);
+					txn.setRefId(dipcoinReferenceNumber);
+					txn.setRefUrl(refUrl);
+					//txn.setType(TollConstant.MANAGE_EXCEPTION_TYPE);
+                    
+					txn.setType(TollConstant.MANAGE_EXCEPTION_TYPE);
+					
+
+					TagList tagList = new TagList();
+
+					List<Tag> tags = new ArrayList<>();
+					Integer seqNum = NumberUtils.INTEGER_ZERO;
+					for (TollTag tollTag : tollTags) {
+
+						if ((httpServletContext.isProdEnvironment()
+								&& tollTag.getExcCode().equals(TollConstant.EXC_CODE_EXEMTED_LIST))
+								|| (tollTag.getWalletBankId() > NumberUtils.INTEGER_ZERO ? tollTag.getWalletBankId() != bankId : tollTag.getBankId() != bankId)
+								|| (tollTagRequest != null && StringUtils.isNotBlank(tollTagRequest.getExcCode())
+										&& ((httpServletContext.isProdEnvironment() && tollTagRequest.getExcCode()
+												.equals(TollConstant.EXC_CODE_EXEMTED_LIST))
+												|| !tollTag.getExcCode()
+														.equalsIgnoreCase(tollTagRequest.getExcCode())))) {
+							continue;
+						}
+
+						Tag tag = new Tag();
+						tag.setExcCode(tollTag.getExcCode());
+						tag.setOp(operation.equals(TollConstant.ADD_OP) || operation.equals(TollConstant.ADD_TO_NPCI)
+								? TollConstant.ADD_OP
+								: TollConstant.REMOVE_OP);
+						tag.setSeqNum(String.valueOf(++seqNum));
+						tag.setTagId(tollTag.getTagId());
+						tags.add(tag);
+
+						if (operation.equals(TollConstant.ADD_OP) || operation.equals(TollConstant.REMOVE_OP)) {
+							try {
+								if (tollTag.getExcCode().equalsIgnoreCase(TollConstant.EXC_CODE_BLACKLIST)
+										&& operation.equalsIgnoreCase(TollConstant.ADD_OP)) {
+
+									// success sms
+									if (!applicationProperties.getAwsSMSClient()
+											&& !smsClient.sendSms(tollTag.getTollRegistration().getMobileNo(),
+													Templates.TollTagBlackListing.format(bank.getAlias()), true)) {
+										LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Failed to send SMS")
+												.data("phone", tollTag.getTollRegistration().getMobileNo()).format());
+									}
+
+									if (applicationProperties.getAwsSMSClient()) {
+
+										NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+										notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+										if (!notificationResource.sendSms(tollTag.getTollRegistration().getMobileNo(),
+												Templates.TollTagBlackListing.format(bank.getAlias()),
+												httpServletContext.getClientFeatureFlags().smsEnabled(),
+												notificationRequestContext)) {
+
+											LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+													.message("Failed to send SMS")
+													.data("phone", tollTag.getTollRegistration().getMobileNo())
+													.format());
+
+										}
+									}
+
+									// Email
+									if (!this.tollEmailUtils.tollTagBlackListing(tollTag.getRegistrationNo(), bank,
+											tollTag.getTollRegistration())) {
+										LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Failed to send email to Blacklisting of tag.")
+												.data("user email", tollTag.getTollRegistration().getEmailId())
+												.format());
+									}
+
+								} else if (tollTag.getExcCode().equalsIgnoreCase(TollConstant.EXC_CODE_BLACKLIST)
+										&& operation.equalsIgnoreCase(TollConstant.REMOVE_OP)) {
+
+									// success sms
+									if (!applicationProperties.getAwsSMSClient()
+											&& !smsClient.sendSms(tollTag.getTollRegistration().getMobileNo(),
+													Templates.TollTagWhiteListing.format(bank.getAlias()), true)) {
+										LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Failed to send SMS")
+												.data("phone", tollTag.getTollRegistration().getMobileNo()).format());
+									}
+
+									if (applicationProperties.getAwsSMSClient()) {
+
+										NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+										notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+										if (!notificationResource.sendSms(tollTag.getTollRegistration().getMobileNo(),
+												Templates.TollTagWhiteListing.format(bank.getAlias()),
+												httpServletContext.getClientFeatureFlags().smsEnabled(),
+												notificationRequestContext)) {
+
+											LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+													.message("Failed to send SMS")
+													.data("phone", tollTag.getTollRegistration().getMobileNo())
+													.format());
+
+										}
+									}
+
+									// Email
+									if (!this.tollEmailUtils.tollTagWhiteListing(tollTag.getRegistrationNo(), bank,
+											tollTag.getTollRegistration())) {
+										LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Failed to send email to Blacklisting of tag.")
+												.data("user email", tollTag.getTollRegistration().getEmailId())
+												.format());
+									}
+
+								} else if (tollTag.getExcCode().equalsIgnoreCase(TollConstant.EXC_CODE_LOWBALANCE_LIST)
+										&& operation.equalsIgnoreCase(TollConstant.ADD_OP)) {
+									// sms
+									if (!applicationProperties.getAwsSMSClient()
+											&& !smsClient.sendSms(tollTag.getTollRegistration().getMobileNo(),
+													Templates.TollTagLowBalance.format(bank.getAlias()), true)) {
+										LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Failed to send SMS")
+												.data("phone", tollTag.getTollRegistration().getMobileNo()).format());
+									}
+
+									if (applicationProperties.getAwsSMSClient()) {
+
+										NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+										notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+										if (!notificationResource.sendSms(tollTag.getTollRegistration().getMobileNo(),
+												Templates.TollTagLowBalance.format(bank.getAlias()),
+												httpServletContext.getClientFeatureFlags().smsEnabled(),
+												notificationRequestContext)) {
+
+											LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+													.message("Failed to send SMS")
+													.data("phone", tollTag.getTollRegistration().getMobileNo())
+													.format());
+
+										}
+									}
+
+									// Email
+									if (!this.tollEmailUtils.tollTagLowBalance(tollTag.getRegistrationNo(), bank,
+											tollTag.getTollRegistration())) {
+										LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Failed to send email to set tag low balance.")
+												.data("user email", tollTag.getTollRegistration().getEmailId())
+												.format());
+									}
+
+								}
+								else if (tollTag.getExcCode().equalsIgnoreCase(TollConstant.EXC_CODE_HOTLIST)
+                                    && operation.equalsIgnoreCase(TollConstant.ADD_OP)) {
+                                // sms
+                                if (!applicationProperties.getAwsSMSClient()
+                                        && !smsClient.sendSms(tollTag.getTollRegistration().getMobileNo(),
+                                                Templates.TollTagHotListing.format(bank.getAlias()), true)) {
+                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                            .message("Failed to send SMS")
+                                            .data("phone", tollTag.getTollRegistration().getMobileNo()).format());
+                                }
+
+                                if (applicationProperties.getAwsSMSClient()) {
+
+                                    NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+                                    notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+                                    if (!notificationResource.sendSms(tollTag.getTollRegistration().getMobileNo(),
+                                            Templates.TollTagHotListing.format(bank.getAlias()),
+                                            httpServletContext.getClientFeatureFlags().smsEnabled(),
+                                            notificationRequestContext)) {
+
+                                        LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                                .message("Failed to send SMS")
+                                                .data("phone", tollTag.getTollRegistration().getMobileNo())
+                                                .format());
+
+                                    }
+                                }
+
+                                // Email
+                                if (!this.tollEmailUtils.tollTagHotListing(tollTag.getRegistrationNo(), bank,
+                                        tollTag.getTollRegistration())) {
+                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                            .message("Failed to send email to set tag hot listing.")
+                                            .data("user email", tollTag.getTollRegistration().getEmailId())
+                                            .format());
+                                }
+
+                              } else if (tollTag.getExcCode()
+                                  .equalsIgnoreCase(TollConstant.EXC_CODE_HOTLIST)
+                                  && operation.equalsIgnoreCase(TollConstant.REMOVE_OP)) {
+
+                                // success sms
+                                if (!applicationProperties.getAwsSMSClient() && !smsClient.sendSms(
+                                    tollTag.getTollRegistration().getMobileNo(),
+                                    Templates.TollTagWhiteListing.format(bank.getAlias()), true)) {
+                                  LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                      .message("Failed to send SMS")
+                                      .data("phone", tollTag.getTollRegistration().getMobileNo())
+                                      .format());
+                                }
+
+                                if (applicationProperties.getAwsSMSClient()) {
+
+                                  NotificationRequestContext notificationRequestContext =
+                                      new NotificationRequestContext();
+                                  notificationRequestContext
+                                      .setTraceId(httpServletContext.getTraceId());
+                                  if (!notificationResource.sendSms(
+                                      tollTag.getTollRegistration().getMobileNo(),
+                                      Templates.TollTagWhiteListing.format(bank.getAlias()),
+                                      httpServletContext.getClientFeatureFlags().smsEnabled(),
+                                      notificationRequestContext)) {
+
+                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                        .message("Failed to send SMS")
+                                        .data("phone", tollTag.getTollRegistration().getMobileNo())
+                                        .format());
+
+                                  }
+                                }
+
+                                // Email
+                                if (!this.tollEmailUtils.tollTagWhiteListing(
+                                    tollTag.getRegistrationNo(), bank,
+                                    tollTag.getTollRegistration())) {
+                                  LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                      .message("Failed to send email to whitelisting of tag.")
+                                      .data("user email",
+                                          tollTag.getTollRegistration().getEmailId())
+                                      .format());
+                                }
+
+                              }
+                              else if (tollTag.getExcCode().equalsIgnoreCase(TollConstant.EXC_CODE_CLOSED_OR_REPLACED)
+                                    && operation.equalsIgnoreCase(TollConstant.ADD_OP)) {
+
+                                // success sms
+//                                if (!applicationProperties.getAwsSMSClient()
+//                                        && !smsClient.sendSms(tollTag.getTollRegistration().getMobileNo(),
+//                                                Templates.TollTagClosingOrReplacing.format(bank.getAlias()), true)) {
+//                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+//                                            .message("Failed to send SMS")
+//                                            .data("phone", tollTag.getTollRegistration().getMobileNo()).format());
+//                                }
+//
+//                                if (applicationProperties.getAwsSMSClient()) {
+//
+//                                    NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+//                                    notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+//                                    if (!notificationResource.sendSms(tollTag.getTollRegistration().getMobileNo(),
+//                                            Templates.TollTagClosingOrReplacing.format(bank.getAlias()),
+//                                            httpServletContext.getClientFeatureFlags().smsEnabled(),
+//                                            notificationRequestContext)) {
+//
+//                                        LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+//                                                .message("Failed to send SMS")
+//                                                .data("phone", tollTag.getTollRegistration().getMobileNo())
+//                                                .format());
+//
+//                                    }
+//                                }
+
+                                // Email
+//                                if (!this.tollEmailUtils.tollTagClosingOrReplacing(tollTag.getRegistrationNo(), bank,
+//                                        tollTag.getTollRegistration())) {
+//                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+//                                            .message("Failed to send email to closing or replacing of tag.")
+//                                            .data("user email", tollTag.getTollRegistration().getEmailId())
+//                                            .format());
+//                                }
+                                  //commenting for uat testing
+
+                                if (!applicationProperties.getAwsSMSClient()
+                                        && !smsClient.sendSms(tollTag.getTollRegistration().getMobileNo(),
+                                                Templates.TollTagClosingOrReplacing.format(bank.getAlias()), true)) {
+                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                            .message("Failed to send SMS")
+                                            .data("phone", tollTag.getTollRegistration().getMobileNo()).format());
+                                }
+
+                                if (applicationProperties.getAwsSMSClient()) {
+
+                                    NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+                                    notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+                                    if (!notificationResource.sendSms(tollTag.getTollRegistration().getMobileNo(),
+                                            Templates.TollTagClosingOrReplacing.format(bank.getAlias()),
+                                            httpServletContext.getClientFeatureFlags().smsEnabled(),
+                                            notificationRequestContext)) {
+
+                                        LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                                .message("Failed to send SMS")
+                                                .data("phone", tollTag.getTollRegistration().getMobileNo())
+                                                .format());
+
+                                    }
+                                }
+
+                                // Email
+                                //commenting for uat testing
+                                if (!this.tollEmailUtils.tollTagClosingOrReplacing(tollTag.getRegistrationNo(), bank,
+                                        tollTag.getTollRegistration())) {
+                                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                                            .message("Failed to send email to closing or replacing of tag.")
+                                            .data("user email", tollTag.getTollRegistration().getEmailId())
+                                            .format());
+                                }
+
+								}
+								
+							} catch (Exception e) {
+								LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+										.message("Exception in sending email & sms to Customer.").format());
+							}
+
+						}
+
+					}
+
+					if (CollectionUtils.isEmpty(tags)) {
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message("Tags list empty so continuing to next bank").format());
+						continue;
+					}
+
+					tagList.setTag(tags);
+					txn.setTagList(tagList);
+
+					tollMngTagExceptionRequest.setHead(head);
+					tollMngTagExceptionRequest.setTxn(txn);
+
+					// Create JAXB Context
+					JAXBContext jaxbContext = JAXBContext.newInstance(TollMngTagExceptionRequest.class);
+
+					// Create Marshaller
+					Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+
+					// Required formatting??
+					jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+
+					// Print XML String to Console
+					StringWriter sw = new StringWriter();
+
+					// Write XML to StringWriter
+					jaxbMarshaller.marshal(tollMngTagExceptionRequest, sw);
+
+					// Verify XML Content
+					String postData = sw.toString();
+
+					ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(
+							postData.getBytes(StandardCharsets.UTF_8));
+
+					ByteArrayOutputStream byteArrayOutputStream = tollSignatureGenerationServices
+							.signatureGenerationServices(byteArrayInputStream, httpServletContext.getTraceId(),
+									bank.getOrgId());
+					String responseData = null;
+					
+					// NPCI Active Active Setup Phase2 changes
+					String ipAddress = this.tollHttpsServices.npciHealthCheckApi(httpServletContext.getTraceId());
+					if (StringUtils.isEmpty(ipAddress)) {
+
+						return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+								.body(APIResponse.error(HeaderCode.NETC_NPCI_SERVER_DOWN));
+
+					}
+					int port = this.tollProperties.getNetcHealthCheckPort();
+					String endPoint = this.tollProperties.getManageExceptionUrl();
+					String url = "https://" + ipAddress + ":" + port + endPoint;
+				      
+					try {
+						TollHttpsServices.bankIin = bank.getIin();
+						
+						/*
+						 * responseData = tollHttpsServices.send(tollProperties.getManageExceptionUrl(),
+						 * httpServletContext.getTraceId(), byteArrayOutputStream);
+						 */
+						
+						responseData = tollHttpsServices.send(url,
+								httpServletContext.getTraceId(), byteArrayOutputStream);
+						
+						TollHttpsServices.bankIin = StringUtils.EMPTY;
+						if (responseData == null) {
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("NPCI response empty so continuing to next bank").format());
+							continue;
+						}
+					} catch (Exception e) {
+						e.printStackTrace();
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message("Exception Occured so continuing to next bank").format());
+						continue;
+					}
+
+					tollMngTagExceptionResponse = JAXB.unmarshal(new StringReader(responseData),
+							TollMngTagExceptionResponse.class);
+
+					formatter = new SimpleDateFormat(TollConstant.TS_DATE_FORMAT);
+					TollMngTagExceptionResponse tollMngTagExceptionResp = objectMapper.readValue(
+							objectMapper.writeValueAsString(tollMngTagExceptionResponse),
+							TollMngTagExceptionResponse.class);
+					tollMngTagExceptionResp.getTxn().getResp().getTag().clear();
+
+					if (operation.equals(TollConstant.ADD_OP) || operation.equals(TollConstant.REMOVE_OP)) {
+						for (Tag tag : tollMngTagExceptionResponse.getTxn().getResp().getTag()) {
+							for (TollTag tollTag : tollTags) {
+								if (tollTag.getTagId().equalsIgnoreCase(tag.getTagId())) {
+
+									tollMngTagExceptionResp.getTxn().getResp().setTag(Arrays.asList(
+											objectMapper.readValue(objectMapper.writeValueAsString(tag), Tag.class)));
+									tollTag.setUpdateExceptionResponse(
+											objectMapper.writeValueAsString(tollMngTagExceptionResp));
+									tollTag.setUpdateExceptionErrorCode(tag.getErrCode());
+									tollTag.setExcCodeUpdateTime(String.valueOf(
+											formatter.parse(tollMngTagExceptionResp.getTxn().getTs()).getTime()));
+									tollTag.setExcCode(operation.equalsIgnoreCase(TollConstant.REMOVE_OP)
+											? TollConstant.SUCCESS_RESPONSE
+											: tollTag.getExcCode());
+									tollDBService.updateTollTag(tollTag);
+								}
+							}
+						}
+					}
+				}
+				tollMngTagExceptionResponseList.add(tollMngTagExceptionResponse);
+			}
+
+			return ResponseEntity.status(HttpStatus.OK).body(tollMngTagExceptionResponseList);
+		}
+
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+				.body(APIResponse.error(HeaderCode.TOLL_USER_DETAILS_CANNOT_UPDATE));
 	}
 
 }
