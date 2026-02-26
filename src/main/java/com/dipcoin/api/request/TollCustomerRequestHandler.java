@@ -52,11 +52,11 @@ public class TollCustomerRequestHandler {
 
 	@Autowired
 	private TollCustomerResource tollServicesResource;
-	
+
 	@Autowired
 	@Lazy
 	private HttpServletContext httpServletContext;
-	
+
 	@PostMapping("register")
 	@ApiOperation(value = "Registeration Details for toll services customer", notes = "API to add a new customer account.", response = TollRegistrationResponse.class)
 	@ApiResponses(value = {
@@ -93,7 +93,7 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.getTollCustomerDetails(httpServletContext.getUser(), status, tagId);
 	}
-	
+
 	// Get Toll customer Doc based on docpath
 	@GetMapping("doc")
 	@ApiOperation(value = "Getting the toll Customer Document based on doc path", notes = "API to get Toll Customer Doc based on doc path", response = TollRegistrationResponse.class)
@@ -111,7 +111,7 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.getTollCustomerDoc(httpServletContext.getUser(), clientTransactionId, docPath);
 	}
-	
+
 	// vehicle verification netc
 	@GetMapping("vehicleVerification")
 	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
@@ -135,7 +135,7 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.vehicleVerification(httpServletContext.getUser(), clientTransactionId,
 				vehicleRegistrationNo, vehicleClass, tagId, tid, cardId, regType);
 	}
-	
+
 	@GetMapping("charges")
 	@ApiOperation(value = "Getting the vehicle charges based on bankId and vehicle class.", notes = "API to get all charges for vehicle based on bank and vehicle class", response = TollRegistrationResponse.class)
 	@ApiResponses(value = { @ApiResponse(code = 400, message = "Vehicle Class Not found", response = APIResponse.class),
@@ -150,7 +150,7 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
 				RegistrationType.DEFAULT.value());
 	}
-	
+
 	@GetMapping("IHMCL/charges")
 	@ApiOperation(value = "Getting the Vehicle Charges based on bankId and Vehicle Class for IHMCL.", notes = "API to get all Charges for Vehicle based on bank and vehicle Class for IHMCL", response = TollRegistrationResponse.class)
 	@ApiResponses(value = { @ApiResponse(code = 400, message = "Vehicle Class Not found", response = APIResponse.class),
@@ -165,7 +165,7 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
 				RegistrationType.IHMCL.value());
 	}
-	
+
 	// reqVehicle details this Api is similar to toll vehicle verification api
 	// this api is used to get details from vahan system using vin & engineNo or vrn
 	// & engineNo combo
@@ -187,7 +187,7 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.reqVehicleDetails(vrn, vin, lastFiveDigitsOfEngineNo, null, bankReferenceId);
 	}
-	
+
 	// toll vehicle verification at Customer side
 	@GetMapping("vehicleVerificationStatus")
 	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
