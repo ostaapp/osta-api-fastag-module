@@ -1,7 +1,5 @@
 package com.dipcoin.api.request;
 
-import java.util.Arrays;
-import java.util.List;
 import javax.ws.rs.CookieParam;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.QueryParam;
@@ -13,7 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,10 +26,8 @@ import com.dipcoin.api.commons.APIDoc;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
-import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.api.model.TollRechargeRequest;
 //import com.dipcoin.api.model.TollRechargeRequest;
-import com.dipcoin.api.model.TollRechargeResponse;
 //import com.dipcoin.api.model.TollRegistrationRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.model.TollTagRequest;
@@ -283,57 +278,57 @@ public ResponseEntity tollRecharge(
       clientTransactionId);
 }
 
-//toll vehicle verification at Bank side
-@GetMapping("vehicleVerificationStatus")
-@ApiOperation(value = "Getting the vehicle Verification from netc",
-   notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
-@ApiResponses(value = {
-   @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
-   @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
-   @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
-   @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
-public ResponseEntity tollVehicleVerification(
-   @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
-       required = false) @RequestParam(value = "registrationNo",
-           required = false) final String vehicleRegistrationNo,
-   @ApiParam(value = "vehicle verification from netc based on vehicle tagId",
-       required = false) @RequestParam(value = "tagId", required = false) final String tagId,
-   @ApiParam(value = "vehicle verification from netc based on vehicle tid",
-       required = false) @RequestParam(value = "tid", required = false) final String tid,
-   @ApiParam(value = "vehicle verification from netc based on vehicle serialNumber",
-       required = false) @RequestParam(value = "serialNumber",
-           required = false) final String serialNumber,   
-   @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-   throws Exception, APIException {
-
-
- return tollServiceBankResource.bankVehicleVerification(httpServletContext.getUser(), vehicleRegistrationNo,
-     tagId, tid, serialNumber);
-} 
-
-@GetMapping("fetch/vin/fastag")
-public ResponseEntity getFastagWithVin(
-		 @ApiParam(value = "branchCode",
-    	 required = true) @QueryParam(value = "branchCode") final String branchCode,
-		 @ApiParam(value = "serialNumber",
-    	 required = true) @QueryParam(value = "serialNumber") final String serialNumber,
-    @ApiParam(value = "Start Time", required = false,
-        defaultValue = "0") @RequestParam(value = "startTime", defaultValue = "0") Long startTime,
-    @ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(
-        value = "endTime", defaultValue = "2147483646999") Long endTime,
-    @ApiParam(value = "Start", required = false,
-        defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
-    @ApiParam(value = "Count", required = false,
-        defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,  
-    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
-            value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-    throws Exception, APIException {
-
-	 return tollServiceBankResource.fetchTollTagsWithVin(httpServletContext.getUser(), branchCode, clientTransactionId, startTime, endTime, start, count ,serialNumber);
-}
+////toll vehicle verification at Bank side
+//@GetMapping("vehicleVerificationStatus")
+//@ApiOperation(value = "Getting the vehicle Verification from netc",
+//   notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+//@ApiResponses(value = {
+//   @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+//   @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+//   @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+//   @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+//public ResponseEntity tollVehicleVerification(
+//   @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
+//       required = false) @RequestParam(value = "registrationNo",
+//           required = false) final String vehicleRegistrationNo,
+//   @ApiParam(value = "vehicle verification from netc based on vehicle tagId",
+//       required = false) @RequestParam(value = "tagId", required = false) final String tagId,
+//   @ApiParam(value = "vehicle verification from netc based on vehicle tid",
+//       required = false) @RequestParam(value = "tid", required = false) final String tid,
+//   @ApiParam(value = "vehicle verification from netc based on vehicle serialNumber",
+//       required = false) @RequestParam(value = "serialNumber",
+//           required = false) final String serialNumber,   
+//   @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+//		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+//   throws Exception, APIException {
+//
+//
+// return tollServiceBankResource.bankVehicleVerification(httpServletContext.getUser(), vehicleRegistrationNo,
+//     tagId, tid, serialNumber);
+//} 
+//
+//@GetMapping("fetch/vin/fastag")
+//public ResponseEntity getFastagWithVin(
+//		 @ApiParam(value = "branchCode",
+//    	 required = true) @QueryParam(value = "branchCode") final String branchCode,
+//		 @ApiParam(value = "serialNumber",
+//    	 required = true) @QueryParam(value = "serialNumber") final String serialNumber,
+//    @ApiParam(value = "Start Time", required = false,
+//        defaultValue = "0") @RequestParam(value = "startTime", defaultValue = "0") Long startTime,
+//    @ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(
+//        value = "endTime", defaultValue = "2147483646999") Long endTime,
+//    @ApiParam(value = "Start", required = false,
+//        defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
+//    @ApiParam(value = "Count", required = false,
+//        defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,  
+//    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
+//            value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+//    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+//			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+//    throws Exception, APIException {
+//
+//	 return tollServiceBankResource.fetchTollTagsWithVin(httpServletContext.getUser(), branchCode, clientTransactionId, startTime, endTime, start, count ,serialNumber);
+//}
  
 }
 
