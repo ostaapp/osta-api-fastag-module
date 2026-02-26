@@ -24,8 +24,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 
 @SpringBootApplication(exclude = { ErrorMvcAutoConfiguration.class, HibernateJpaAutoConfiguration.class })
-@ComponentScan(basePackages = { "com.dipcoin.api", "com.dipcoin.db", "com.dipcoin.partner" })
+@ComponentScan("com.dipcoin")
 @ImportResource({
+	    "classpath*:dipcoin-ebank-services-application-context.xml",
         "classpath*:dipcoin-core-services-application-context.xml",
         "classpath*:dipcoin-db-services-fastag.xml",
         "classpath*:dipcoin-partner-services-application-context.xml"
