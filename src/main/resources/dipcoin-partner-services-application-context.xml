@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<!-- scans the classpath for annotated components (including @Repostory 
+		and @Service that will be auto-registered as Spring beans -->
+	<context:component-scan
+		base-package="com.dipcoin" />
+	<!-- Define Client Factory bean -->
+	<bean id="rechargeClientFactory"
+		class="org.springframework.beans.factory.config.ServiceLocatorFactoryBean">
+		<property name="serviceLocatorInterface"
+			value="com.dipcoin.partner.recharge.client.RechargeClientFactory" />
+	</bean>
+
+	<!-- default proxy bean -->
+	<bean id="httpProxy" class="com.dipcoin.commons.HttpsUtils.Proxy" />
+
+	<!-- Define ALL Common beans -->
+	<!-- Partner Key Store -->
+	<bean id="partnerKeyStoreManager"
+		class="com.dipcoin.partner.utils.PartnerKeyStoreManager"
+		init-method="init">
+		<property name="secretKeyStorePath"
+			value="classpath:keys/partner_keys_${spring.profiles.active}.p12" />
+		<property name="secretKeyStorePass" value="password" /> <!-- Dev password -->
+		<property name="secretKeyStoreKeyPass" value="password" /> <!-- Dev password -->
+	</bean>
+
+<!-- 	<beans profile="!unit">
+		<beans profile="prod">
+			<bean id="partnerKeyStoreManager"
+				class="com.dipcoin.partner.utils.PartnerKeyStoreManager"
+				init-method="init">
+				<property name="secretKeyStorePath"
+					value="classpath:keys/partner_keys.p12" />
+				<property name="secretKeyStorePass" value="password" />
+				<property name="secretKeyStoreKeyPass" value="password" />
+			</bean>
+		</beans>
+	</beans> -->
+
+	<beans profile="uat, prod">
+		<bean
+			class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+			<property name="staticMethod"
+				value="com.dipcoin.partner.utils.PartnerKeyStoreManager.initProxy" />
+			<property name="arguments">
+				<list>
+					<value>cedge.proxy.in</value>
+					<value>3128</value>
+					<value>false</value>
+				</list>
+			</property>
+		</bean>
+	</beans>
+
+	<beans profile="!unit">
+		<!-- Import ALL recharge configurations -->
+		<import
+			resource="classpath*:dipcoin-recharge-application-context.xml" />
+	</beans>
+</beans>
