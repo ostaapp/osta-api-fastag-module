@@ -176,165 +176,165 @@ public class TollBankRequestHandler extends RequestHandler {
  	 
   }
   
-//  @GetMapping("vehicle/charges/{category:.*}")
-//  @ApiOperation(value = "Api to get the Toll Tag Charges",
-//      notes = "API to get the toll tag charges.", response = APIResponse.class)
-//  public ResponseEntity getTollTagChargesByCategory(
-//      @ApiParam(value = "Toll Tag Charges",
-//          required = true) @PathVariable("category") final String category,
-//      @ApiParam(value = "Account Number",
-//      required = false) @RequestParam(value ="accountNumber",defaultValue = StringUtils.EMPTY) final String accountNumber,
-//      @ApiParam(value = "CustomerAccountId",
-//      required = false) @RequestParam(value ="cardId",defaultValue = StringUtils.EMPTY) final String cardId,
-//      @ApiParam(value = "Misc Charges", required = false,
-//      defaultValue = "true") @RequestParam(value = "miscCharges", defaultValue = "true") Boolean miscCharges,
-//      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-//		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-//      throws Exception, APIException {
-//
-//    return tollServiceBankResource.getTollTagChargesByCategory(httpServletContext.getUser(),
-//        httpServletContext.getBank(), category, RegistrationType.DEFAULT.value(),miscCharges, accountNumber,cardId);
-//  }
-//  
-////vehicle verification netc
-// @GetMapping("toll/vehicleVerification")
-// @ApiOperation(value = "Getting the vehicle Verification from netc",
-//     notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
-// @ApiResponses(value = {
-//     @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
-//     @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
-//     @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
-//     @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
-// public ResponseEntity tollVehicleVerification(
-//     @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(
-//         value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-//     @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
-//         required = false) @RequestParam(
-//             value = "registrationNo",required=false) final String vehicleRegistrationNo,
-//     @ApiParam(value = "vehicle verification from netc based on vehicle tagId",
-//         required = false) @RequestParam(value = "tagId", required=false) final String tagId,
-//     @ApiParam(value = "vehicle verification from netc based on vehicle tid",
-//         required = false) @RequestParam(value = "tid", required=false) final String tid,
-//     @ApiParam(value = "bankReferenceId",
-//         required = false) @RequestParam(value = "bankReferenceId", required=true) final String bankReferenceId,
-//     @ApiParam(value = "regType",
-//     required = false) @RequestParam(value = "regType", required=true) final Integer regType,
-//     @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-//		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-//     throws Exception, APIException {
-//
-//   
-//   return tollServiceBankResource.vehicleVerification(httpServletContext.getUser(), vehicleRegistrationNo,
-//       tagId, tid, regType, bankReferenceId);
-// }
-//
-////reqVehicle details this Api is similar to toll vehicle verification api 
-////this api is used to get details from vahan system using vin & engineNo or vrn & engineNo combo
-//@GetMapping("reqVehicleDetails")
-//@ApiOperation(value = "Getting the vehicle Verification from netc",
-//    notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
-//@ApiResponses(value = {
-//    @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
-//    @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
-//    @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
-//    @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
-//public ResponseEntity reqVehicleDetails(
-//    @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
-//        required = false) @RequestParam(value = "vrn",
-//            required = false) final String vrn,
-//    @ApiParam(value = "vehicle verification from netc based on vehicle vin",
-//        required = false) @RequestParam(value = "vin", required = false) final String vin,
-//    @ApiParam(value = "vehicle verification from netc based on vehicle lastFiveDigitsOfEngineNo",
-//        required = false) @RequestParam(value = "lastFiveDigitsOfEngineNo", required = false) final String lastFiveDigitsOfEngineNo,
-//    @ApiParam(value = "bankReferenceId",
-//    required = true) @RequestParam(value = "bankReferenceId") final String bankReferenceId,
-//    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-//		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-//    throws Exception, APIException {
-//
-//  return tollServiceBankResource.reqVehicleDetails(vrn, vin, lastFiveDigitsOfEngineNo, null, bankReferenceId);
-//}
-//
-///**
-// * Recharge on the Tag and Create Fastag OSTA.
-// */
-//@PostMapping("tag/recharge")
-//@ApiOperation(value = "Recharge Create Osta API ", notes = "API to call Create Osta method")
-//@ApiResponses(value = {@ApiResponse(code = 201,
-//    message = "User registered AND (Failed to send otp sms OR Failed to send verification email)",
-//    response = APIResponse.class),
-//    @ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
-//    @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
-//    @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
-//    @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
-//public ResponseEntity tollRecharge(
-//    @ApiParam(value = "Toll Recharge details",
-//        required = true) @RequestBody final TollRechargeRequest createReq,
-//    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
-//        value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-//    @ApiParam(value = APIDoc.tokenNotes, required = true,
-//        defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(
-//            value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-//    @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(
-//        value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-//    throws Exception, APIException {
-//
-//  return tollServiceBankResource.tollRechargeCreateOsta(httpServletContext.getUser(), createReq,
-//      clientTransactionId);
-//}
-//
-////toll vehicle verification at Bank side
-//@GetMapping("vehicleVerificationStatus")
-//@ApiOperation(value = "Getting the vehicle Verification from netc",
-//   notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
-//@ApiResponses(value = {
-//   @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
-//   @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
-//   @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
-//   @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
-//public ResponseEntity tollVehicleVerification(
-//   @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
-//       required = false) @RequestParam(value = "registrationNo",
-//           required = false) final String vehicleRegistrationNo,
-//   @ApiParam(value = "vehicle verification from netc based on vehicle tagId",
-//       required = false) @RequestParam(value = "tagId", required = false) final String tagId,
-//   @ApiParam(value = "vehicle verification from netc based on vehicle tid",
-//       required = false) @RequestParam(value = "tid", required = false) final String tid,
-//   @ApiParam(value = "vehicle verification from netc based on vehicle serialNumber",
-//       required = false) @RequestParam(value = "serialNumber",
-//           required = false) final String serialNumber,   
-//   @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-//		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-//   throws Exception, APIException {
-//
-//
-// return tollServiceBankResource.bankVehicleVerification(httpServletContext.getUser(), vehicleRegistrationNo,
-//     tagId, tid, serialNumber);
-//} 
-//
-//@GetMapping("fetch/vin/fastag")
-//public ResponseEntity getFastagWithVin(
-//		 @ApiParam(value = "branchCode",
-//    	 required = true) @QueryParam(value = "branchCode") final String branchCode,
-//		 @ApiParam(value = "serialNumber",
-//    	 required = true) @QueryParam(value = "serialNumber") final String serialNumber,
-//    @ApiParam(value = "Start Time", required = false,
-//        defaultValue = "0") @RequestParam(value = "startTime", defaultValue = "0") Long startTime,
-//    @ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(
-//        value = "endTime", defaultValue = "2147483646999") Long endTime,
-//    @ApiParam(value = "Start", required = false,
-//        defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
-//    @ApiParam(value = "Count", required = false,
-//        defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,  
-//    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
-//            value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-//    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
-//			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
-//    throws Exception, APIException {
-//
-//	 return tollServiceBankResource.fetchTollTagsWithVin(httpServletContext.getUser(), branchCode, clientTransactionId, startTime, endTime, start, count ,serialNumber);
-//}
-// 
+  @GetMapping("vehicle/charges/{category:.*}")
+  @ApiOperation(value = "Api to get the Toll Tag Charges",
+      notes = "API to get the toll tag charges.", response = APIResponse.class)
+  public ResponseEntity getTollTagChargesByCategory(
+      @ApiParam(value = "Toll Tag Charges",
+          required = true) @PathVariable("category") final String category,
+      @ApiParam(value = "Account Number",
+      required = false) @RequestParam(value ="accountNumber",defaultValue = StringUtils.EMPTY) final String accountNumber,
+      @ApiParam(value = "CustomerAccountId",
+      required = false) @RequestParam(value ="cardId",defaultValue = StringUtils.EMPTY) final String cardId,
+      @ApiParam(value = "Misc Charges", required = false,
+      defaultValue = "true") @RequestParam(value = "miscCharges", defaultValue = "true") Boolean miscCharges,
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws Exception, APIException {
+
+    return tollServiceBankResource.getTollTagChargesByCategory(httpServletContext.getUser(),
+        httpServletContext.getBank(), category, RegistrationType.DEFAULT.value(),miscCharges, accountNumber,cardId);
+  }
+  
+//vehicle verification netc
+ @GetMapping("toll/vehicleVerification")
+ @ApiOperation(value = "Getting the vehicle Verification from netc",
+     notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+ @ApiResponses(value = {
+     @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+     @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+     @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+     @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+ public ResponseEntity tollVehicleVerification(
+     @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(
+         value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+     @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
+         required = false) @RequestParam(
+             value = "registrationNo",required=false) final String vehicleRegistrationNo,
+     @ApiParam(value = "vehicle verification from netc based on vehicle tagId",
+         required = false) @RequestParam(value = "tagId", required=false) final String tagId,
+     @ApiParam(value = "vehicle verification from netc based on vehicle tid",
+         required = false) @RequestParam(value = "tid", required=false) final String tid,
+     @ApiParam(value = "bankReferenceId",
+         required = false) @RequestParam(value = "bankReferenceId", required=true) final String bankReferenceId,
+     @ApiParam(value = "regType",
+     required = false) @RequestParam(value = "regType", required=true) final Integer regType,
+     @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+     throws Exception, APIException {
+
+   
+   return tollServiceBankResource.vehicleVerification(httpServletContext.getUser(), vehicleRegistrationNo,
+       tagId, tid, regType, bankReferenceId);
+ }
+
+//reqVehicle details this Api is similar to toll vehicle verification api 
+//this api is used to get details from vahan system using vin & engineNo or vrn & engineNo combo
+@GetMapping("reqVehicleDetails")
+@ApiOperation(value = "Getting the vehicle Verification from netc",
+    notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+@ApiResponses(value = {
+    @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+    @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+    @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+    @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+public ResponseEntity reqVehicleDetails(
+    @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
+        required = false) @RequestParam(value = "vrn",
+            required = false) final String vrn,
+    @ApiParam(value = "vehicle verification from netc based on vehicle vin",
+        required = false) @RequestParam(value = "vin", required = false) final String vin,
+    @ApiParam(value = "vehicle verification from netc based on vehicle lastFiveDigitsOfEngineNo",
+        required = false) @RequestParam(value = "lastFiveDigitsOfEngineNo", required = false) final String lastFiveDigitsOfEngineNo,
+    @ApiParam(value = "bankReferenceId",
+    required = true) @RequestParam(value = "bankReferenceId") final String bankReferenceId,
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+    throws Exception, APIException {
+
+  return tollServiceBankResource.reqVehicleDetails(vrn, vin, lastFiveDigitsOfEngineNo, null, bankReferenceId);
+}
+
+/**
+ * Recharge on the Tag and Create Fastag OSTA.
+ */
+@PostMapping("tag/recharge")
+@ApiOperation(value = "Recharge Create Osta API ", notes = "API to call Create Osta method")
+@ApiResponses(value = {@ApiResponse(code = 201,
+    message = "User registered AND (Failed to send otp sms OR Failed to send verification email)",
+    response = APIResponse.class),
+    @ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+    @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+    @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+    @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+public ResponseEntity tollRecharge(
+    @ApiParam(value = "Toll Recharge details",
+        required = true) @RequestBody final TollRechargeRequest createReq,
+    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
+        value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+    @ApiParam(value = APIDoc.tokenNotes, required = true,
+        defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(
+            value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+    @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(
+        value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+    throws Exception, APIException {
+
+  return tollServiceBankResource.tollRechargeCreateOsta(httpServletContext.getUser(), createReq,
+      clientTransactionId);
+}
+
+//toll vehicle verification at Bank side
+@GetMapping("vehicleVerificationStatus")
+@ApiOperation(value = "Getting the vehicle Verification from netc",
+   notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
+@ApiResponses(value = {
+   @ApiResponse(code = 400, message = "Toll Customer Id Invalid", response = APIResponse.class),
+   @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+   @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+   @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+public ResponseEntity tollVehicleVerification(
+   @ApiParam(value = "vehicle verification from netc based on vehicle registration number",
+       required = false) @RequestParam(value = "registrationNo",
+           required = false) final String vehicleRegistrationNo,
+   @ApiParam(value = "vehicle verification from netc based on vehicle tagId",
+       required = false) @RequestParam(value = "tagId", required = false) final String tagId,
+   @ApiParam(value = "vehicle verification from netc based on vehicle tid",
+       required = false) @RequestParam(value = "tid", required = false) final String tid,
+   @ApiParam(value = "vehicle verification from netc based on vehicle serialNumber",
+       required = false) @RequestParam(value = "serialNumber",
+           required = false) final String serialNumber,   
+   @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+   throws Exception, APIException {
+
+
+ return tollServiceBankResource.bankVehicleVerification(httpServletContext.getUser(), vehicleRegistrationNo,
+     tagId, tid, serialNumber);
+} 
+
+@GetMapping("fetch/vin/fastag")
+public ResponseEntity getFastagWithVin(
+		 @ApiParam(value = "branchCode",
+    	 required = true) @QueryParam(value = "branchCode") final String branchCode,
+		 @ApiParam(value = "serialNumber",
+    	 required = true) @QueryParam(value = "serialNumber") final String serialNumber,
+    @ApiParam(value = "Start Time", required = false,
+        defaultValue = "0") @RequestParam(value = "startTime", defaultValue = "0") Long startTime,
+    @ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(
+        value = "endTime", defaultValue = "2147483646999") Long endTime,
+    @ApiParam(value = "Start", required = false,
+        defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
+    @ApiParam(value = "Count", required = false,
+        defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,  
+    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
+            value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+    throws Exception, APIException {
+
+	 return tollServiceBankResource.fetchTollTagsWithVin(httpServletContext.getUser(), branchCode, clientTransactionId, startTime, endTime, start, count ,serialNumber);
+}
+ 
 }
 
 
