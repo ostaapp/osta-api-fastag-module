@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 import org.redisson.api.RKeys;
 import org.redisson.api.RLock;
@@ -72,6 +73,7 @@ import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.io.ClassPathResource;
 import org.apache.commons.collections4.CollectionUtils;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -136,6 +138,9 @@ public class TollCustomerResource {
 	@Autowired
 	@Lazy
 	private HttpServletContext httpServletContext;
+	
+	@Autowired
+	private EncryptionResource encryptionResource;
 
 	@Autowired
 	@Qualifier("com.dipcoin.metrics.TollMetricRegistry")
@@ -3030,6 +3035,498 @@ public class TollCustomerResource {
 
 		response.addHeaderCode(HeaderCode.TOLL_TAG_ACTIVATED);
 		return ResponseEntity.status(HttpStatus.OK).body(response);
+
+	}
+	
+	/*
+	 * Add And Update without MULTIPART toll Collection Customer setting idProof and
+	 * rcDoc from the resource for APK call.
+	 */
+	public ResponseEntity addAndUpdateTollCustomer(User user, User bankUser, Bank bank, final String request,
+			final Integer registrationType, final String clientTransactionId) throws Exception, APIException {
+
+		TollRegistrationResponse response = new TollRegistrationResponse();
+		List<FeesAndDeposit> feesAndDeposits = null;
+
+		ResponseEntity responseEntity = null;
+		// Checking for the clientTransactionID is null
+		if (clientTransactionId == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.MISSING_CLIENTTRANSACTIONID));
+		}
+
+		if (!userDBService.isCustomer(user) && bank == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+		if (!this.userDBService.isActive(user) && bank == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+		}
+
+		response.setClientTransactionId(clientTransactionId);
+
+		if (request == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.MISSING_INVALID_INFO));
+		}
+
+		// set idProof and rcDoc from the resource for APK call.
+
+		MultipartFile idProof = setIdProof();
+
+		MultipartFile[] rcDoc = setRcDoc();
+
+		MultipartFile filepart = idProof;
+		if (null == filepart || NumberUtils.INTEGER_ZERO == rcDoc.length) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_TAG_IMAGE_MISSING));
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("filepart").data("filepart", filepart)
+				.format());
+
+		LOG.debug(
+				LogFormatter.instance(httpServletContext.getTraceId()).message("rcDoc").data("rcDoc", rcDoc).format());
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("TollRegistrationRequest")
+				.data("request", request).format());
+		final TollRegistrationRequest createReq = new ObjectMapper().readValue(request, TollRegistrationRequest.class);
+
+		// If request is called from bank
+		if (bank != null) {
+			// Get the List
+
+			List<CustomerAccount> existingAccounts = this.customerDBService.asyncGetAccounts(user.getId()).get();
+			if (CollectionUtils.isEmpty(existingAccounts)) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message(HeaderCode.MISSING_USER_CARDID.message()).format());
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+						.body(APIResponse.error(HeaderCode.MISSING_USER_CARDID));
+			}
+
+			for (CustomerAccount account : existingAccounts) {
+				if (((StringUtils.isNotEmpty(account.getHashedAccountNumber()) && account.getHashedAccountNumber()
+						.equals(Utils.getHashedLogin(StringUtils.stripStart(createReq.getAccountNumber(), "0"))))
+						|| (StringUtils.isNotEmpty(account.getHashedLogin()) && account.getHashedLogin().equals(
+								Utils.getHashedLogin(StringUtils.stripStart(createReq.getAccountNumber(), "0")))))
+						&& CustomerAccountStatus.ACTIVE.value() == account.getStatus()) {
+					createReq.setCardId(account.getUserCardId());
+					break;
+				}
+			}
+
+			// Fetch the registered User.from bank
+			List<User> users = this.userDBService.getUsers(createReq.getMobileNo(), 0,
+					Arrays.asList(UserRoles.CUSTOMER.value()), DBConstants.UserStatus.ACTIVE.value());
+			// overide the bankuser object to
+			// registered customer user object.
+			user = users.get(0);
+
+			// Seeting the Autorization Pin
+			createReq.setAuthorizationPin(APIConstants.PIN);
+
+		}
+
+		CustomerAccount customerAccount = customerDBService.getAccount(user.getId(), createReq.getCardId());
+		if (customerAccount == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message(HeaderCode.MISSING_INVALID_INFO.message()).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.MISSING_INVALID_INFO));
+
+		}
+
+		// pass lien debit credit method
+		/*
+		 * ResponseEntity lienDebitRes = this.lienDebitCredit(customerAccount, request);
+		 * 
+		 * if (HttpStatus.BAD_REQUEST.value() <= lienDebitRes.getStatusCodeValue()) {
+		 * return lienDebitRes; }
+		 */
+
+		TollRegistration tollRegistration = null;
+
+		if (createReq.getId() != null && createReq.getId() != NumberUtils.INTEGER_ZERO) {
+			TollRegistration tollReg = this.tollDBService.findById(createReq.getId());
+
+			if (null == tollReg) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
+			}
+			if (isProfileChanged(tollReg, createReq)) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Profile has been Changed")
+						.format());
+				createReq.setId(NumberUtils.INTEGER_ZERO);
+				if (customerAccount.getTypeOfMethod() != CustomerAccountMethodType.WALLET_INB.value()) {
+					responseEntity = getFeesAndDeposits(user, createReq, clientTransactionId, customerAccount,
+							registrationType);
+					if (HttpStatus.BAD_REQUEST.value() <= responseEntity.getStatusCodeValue()) {
+						if (this.vehicleNumberLock != null) {
+							try {
+								this.vehicleNumberLock.unlock();
+								LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+										.message("vehicleNumberLock unlocked").format());
+							} catch (Exception ex) {
+								LOG.debug(
+										LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Exception Caught while unlocking vehicleNumberLock").format(),
+										ex);
+							}
+						}
+						return responseEntity;
+					}
+					feesAndDeposits = (List<FeesAndDeposit>) responseEntity.getBody();
+				}
+
+			} else {
+
+				createReq.setStatus(tollReg.getStatus());
+				if (customerAccount.getTypeOfMethod() != CustomerAccountMethodType.WALLET_INB.value()) {
+					vehicleRegistrationNo.clear();
+					responseEntity = getFeesAndDeposits(user, createReq, clientTransactionId, customerAccount, tollReg,
+							registrationType);
+					if (HttpStatus.BAD_REQUEST.value() <= responseEntity.getStatusCodeValue()) {
+						if (this.vehicleNumberLock != null) {
+							try {
+								this.vehicleNumberLock.unlock();
+								LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+										.message("vehicleNumberLock unlocked").format());
+							} catch (Exception ex) {
+								LOG.debug(
+										LogFormatter.instance(httpServletContext.getTraceId())
+												.message("Exception Caught while unlocking vehicleNumberLock").format(),
+										ex);
+							}
+						}
+						return responseEntity;
+					}
+					feesAndDeposits = (List<FeesAndDeposit>) responseEntity.getBody();
+				}
+			}
+
+		} else {
+			if (customerAccount.getTypeOfMethod() != CustomerAccountMethodType.WALLET_INB.value()) {
+
+				responseEntity = getFeesAndDeposits(user, createReq, clientTransactionId, customerAccount,
+						registrationType);
+				if (HttpStatus.BAD_REQUEST.value() <= responseEntity.getStatusCodeValue()) {
+					if (this.vehicleNumberLock != null) {
+						try {
+							this.vehicleNumberLock.unlock();
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("vehicleNumberLock unlocked").format());
+						} catch (Exception ex) {
+							LOG.debug(
+									LogFormatter.instance(httpServletContext.getTraceId())
+											.message("Exception Caught while unlocking vehicleNumberLock").format(),
+									ex);
+						}
+					}
+					return responseEntity;
+				}
+				feesAndDeposits = (List<FeesAndDeposit>) responseEntity.getBody();
+			}
+		}
+
+		if (createReq.getId() != NumberUtils.INTEGER_ZERO && createReq.getId() != null) {
+			if (customerAccount.getTypeOfMethod() != CustomerAccountMethodType.WALLET_INB.value()) {
+				// commenting because of proxy issue.
+
+				responseEntity = createFeesandDepositOsta(createReq, user, bankUser, customerAccount, feesAndDeposits,
+						registrationType, clientTransactionId);
+				if (HttpStatus.BAD_REQUEST.value() <= responseEntity.getStatusCodeValue()) {
+					if (this.vehicleNumberLock != null) {
+						try {
+							this.vehicleNumberLock.unlock();
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("vehicleNumberLock unlocked").format());
+						} catch (Exception ex) {
+							LOG.debug(
+									LogFormatter.instance(httpServletContext.getTraceId())
+											.message("Exception Caught while unlocking vehicleNumberLock").format(),
+									ex);
+						}
+					}
+
+					return responseEntity;
+				}
+			} else {
+				feesAndDeposits = feesAndDepositDBService.findByBankIdAndChargeCategory(
+						Arrays.asList(customerAccount.getWalletBankId()),
+						new HashSet<String>(Arrays.asList(createReq.getVehicleList().get(0).getCategory())));
+
+				if (CollectionUtils.isEmpty(feesAndDeposits)) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message(HeaderCode.TOLL_DEPOSIT_AND_FEE_AMOUNT_NOT_AVAILABLE.message()).format());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.body(APIResponse.error(HeaderCode.TOLL_DEPOSIT_AND_FEE_AMOUNT_NOT_AVAILABLE));
+
+				}
+			}
+			// Call for populating the request for save
+			TollRegistration registerationSaveObj = populateForSaveAndUpdateTollCustomer(user, bankUser, createReq,
+					clientTransactionId, customerAccount, feesAndDeposits, registrationType, null);
+
+			// update the registration details.
+			tollRegistration = this.tollDBService.asyncUpdate(registerationSaveObj).get();
+
+			if (null == tollRegistration) {
+				if (this.vehicleNumberLock != null) {
+					try {
+						this.vehicleNumberLock.unlock();
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message("vehicleNumberLock unlocked").format());
+					} catch (Exception ex) {
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message("Exception Caught while unlocking vehicleNumberLock").format(), ex);
+					}
+				}
+
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+						.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+			}
+
+			setFilePath(tollRegistration, user, filepart, createReq, rcDoc);
+
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll Updated").format());
+
+			vehicleRegistrationNo.clear();
+			response.addHeaderCode(HeaderCode.TOLL_REGISTRATION_BY_CUSTOMER_SUCCESSFULL);
+		} else {
+			if (customerAccount.getTypeOfMethod() != CustomerAccountMethodType.WALLET_INB.value()) {
+
+				// commenting because of proxy issue
+				responseEntity = createFeesandDepositOsta(user, bankUser, bank, customerAccount, feesAndDeposits,
+						createReq, registrationType, clientTransactionId);
+				if (HttpStatus.BAD_REQUEST.value() <= responseEntity.getStatusCodeValue()) {
+
+					if (this.vehicleNumberLock != null) {
+						try {
+							this.vehicleNumberLock.unlock();
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("vehicleNumberLock unlocked").format());
+						} catch (Exception ex) {
+							LOG.debug(
+									LogFormatter.instance(httpServletContext.getTraceId())
+											.message("Exception Caught while unlocking vehicleNumberLock").format(),
+									ex);
+						}
+					}
+
+					return responseEntity;
+				}
+			} else {
+				feesAndDeposits = feesAndDepositDBService.findByBankIdAndChargeCategory(
+						Arrays.asList(customerAccount.getWalletBankId()),
+						new HashSet<String>(Arrays.asList(createReq.getVehicleList().get(0).getCategory())));
+
+				if (CollectionUtils.isEmpty(feesAndDeposits)) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message(HeaderCode.TOLL_DEPOSIT_AND_FEE_AMOUNT_NOT_AVAILABLE.message()).format());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.body(APIResponse.error(HeaderCode.TOLL_DEPOSIT_AND_FEE_AMOUNT_NOT_AVAILABLE));
+
+				}
+			}
+
+			// Call for populating the request for save
+			TollRegistration registerationSaveObj = populateForSaveAndUpdateTollCustomer(user, bankUser, createReq,
+					clientTransactionId, customerAccount, feesAndDeposits, registrationType, null);
+
+			tollRegistration = tollDBService.asyncSave(registerationSaveObj).get();
+
+			if (null == tollRegistration) {
+
+				if (this.vehicleNumberLock != null) {
+					try {
+						this.vehicleNumberLock.unlock();
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message("vehicleNumberLock unlocked").format());
+					} catch (Exception ex) {
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message("Exception Caught while unlocking vehicleNumberLock").format(), ex);
+					}
+				}
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+						.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+			}
+
+			setFilePath(tollRegistration, user, filepart, createReq, rcDoc);
+
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll Created").format());
+			populateTollCustomerResponse(user, createReq, response);
+			response.addHeaderCode(HeaderCode.TOLL_REGISTRATION_BY_CUSTOMER_SUCCESSFULL);
+		}
+
+		try {
+
+			StringBuilder tags = new StringBuilder();
+			for (TollTag tolltag : tollRegistration.getTollTag()) {
+				if (tollRegistration.getTollTag().size() > 1) {
+					tags.append(",").append(tolltag.getRegistrationNo());
+				} else {
+					tags.append(tolltag.getRegistrationNo());
+				}
+			}
+
+			// success sms
+			if (!smsClient.sendSms(tollRegistration.getMobileNo(),
+					Templates.TollTagRegistration.format(tags.toString(),
+							customerAccount.getBank().getAlias() == null ? customerAccount.getBank().getName()
+									: customerAccount.getBank().getAlias()),
+					true)) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to send SMS")
+						.data("phone", tollRegistration.getMobileNo()).format());
+			}
+
+			if (applicationProperties.getAwsSMSClient()) {
+
+				NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+				notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+				if (!notificationResource.sendSms(tollRegistration.getMobileNo(),
+						Templates.TollTagRegistration.format(tags.toString(),
+								customerAccount.getBank().getAlias() == null ? customerAccount.getBank().getName()
+										: customerAccount.getBank().getAlias()),
+						httpServletContext.getClientFeatureFlags().smsEnabled(), notificationRequestContext)) {
+
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to send SMS")
+							.data("phone", tollRegistration.getMobileNo()).format());
+
+				}
+			}
+
+			// Email
+			if (!this.tollEmailUtils.sendTollCustomerRegistrationEmail(tags.toString(), customerAccount.getBank(),
+					tollRegistration)) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Failed to send email to Cutomer for Registration success.")
+						.data("user email", tollRegistration.getEmailId()).format());
+			}
+
+		} catch (Exception exception) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Exception in sending email & sms to Customer." + exception).format());
+		} finally {
+
+			if (this.vehicleNumberLock != null) {
+				try {
+					this.vehicleNumberLock.unlock();
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("vehicleNumberLock unlocked").format());
+				} catch (Exception ex) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("Exception Caught while unlocking vehicleNumberLock").format(), ex);
+				}
+			}
+		}
+		// Adding the count to metrix
+		tollMetricRegistry.numberOfTagsApplied().increment();
+
+		return ResponseEntity.status(HttpStatus.OK).body(response);
+
+	}
+	
+	private MultipartFile[] setRcDoc() {
+		try {
+	        // Load rcDoc.png from resources
+	        ClassPathResource resource = new ClassPathResource("RCImage.png");
+	        InputStream inputStream = resource.getInputStream();
+
+	        MultipartFile rcFile = new MockMultipartFile(
+	                "rcDoc",                        // form field name
+	                resource.getFilename(),         // original filename
+	                "image/png",                    // content type
+	                inputStream                     // file content
+	        );
+
+	        return new MultipartFile[]{ rcFile };
+	    } catch (IOException e) {
+	        throw new RuntimeException("Failed to load rcDoc.png from resources", e);
+	    }
+	}
+
+	private MultipartFile setIdProof() {
+		try {
+	        // Load idProof.png from resources
+	        ClassPathResource resource = new ClassPathResource("idProof.png");
+	        InputStream inputStream = resource.getInputStream();
+
+	        return new MockMultipartFile(
+	                "idProof",                      // form field name
+	                resource.getFilename(),         // original filename
+	                "image/png",                    // content type
+	                inputStream                     // file content
+	        );
+	    } catch (IOException e) {
+	        throw new RuntimeException("Failed to load idProof.png from resources", e);
+	    }
+	}
+
+	/*
+	 * Delete the Toll Customer
+	 */
+
+	public ResponseEntity deleteTollCustomerAccount(final User user, final String encTcid)
+			throws Exception, APIException {
+
+		if (!this.userDBService.isCustomer(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		// Decrypt the Toll customer id
+		String decTcid = encryptCardId ? encryptionResource.decrypt(user, null, null, encTcid) : encTcid;
+		if (StringUtils.isBlank(decTcid)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.INVALID_ENCRYPTED_DATA));
+		}
+		Integer tcid = Integer.parseInt(decTcid);
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Delete TollCustomer Account")
+				.data("UserId", user.getId()).data("TollId", tcid).format());
+		TollRegistrationResponse response = new TollRegistrationResponse();
+
+		TollRegistration tollCustomerAccount = this.tollDBService.findById(tcid);
+
+		if (tollCustomerAccount == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_ACCOUNT_DOESNT_EXIST));
+		}
+
+		// Updating the tollCustomer to Deactivate
+		tollCustomerAccount.setStatus(String.valueOf(TollRegistrationStatus.INACTIVE.value()));
+
+		List<TollTag> listTollTag = new ArrayList<>();
+
+		for (int i = 0; i < tollCustomerAccount.getTollTag().size(); i++) {
+
+			TollTag tollTag = tollCustomerAccount.getTollTag().get(i);
+
+			tollTag.setStatus(String.valueOf(TollTagApprovalStatus.INACTIVE.value()));
+			tollTag.setExcCode(TollConstant.EXC_CODE_CLOSED_OR_REPLACED);
+
+			if (tollProperties.isConnectNpci()) {
+				try {
+					brontooResource.updateExceptionList(tollTag, TollConstant.ADD_OP, null);
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("update exccode exception")
+							.format());
+				}
+
+			}
+
+			listTollTag.add(tollTag);
+
+		}
+
+		tollCustomerAccount.setTollTag(listTollTag);
+
+		// Updating the Toll Customer
+		TollRegistration updateregistrationTollCustomer = this.tollDBService.update(tollCustomerAccount);
+
+		if (updateregistrationTollCustomer == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
+
+		}
+		response.addHeaderCode(HeaderCode.TOLL_REGISTRATION_INACTIVE);
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 
 	}
 

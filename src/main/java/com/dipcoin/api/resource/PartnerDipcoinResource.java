@@ -75,818 +75,770 @@ import com.dipcoin.notification.services.model.NotificationRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component("partnerDipcoinResource")
-@Transactional(rollbackFor = {Exception.class, APIException.class},
-    propagation = Propagation.REQUIRES_NEW)
+@Transactional(rollbackFor = { Exception.class, APIException.class }, propagation = Propagation.REQUIRES_NEW)
 public class PartnerDipcoinResource extends DipcoinResource {
 
-  private static final Logger LOG = LogManager.getLogger(PartnerDipcoinResource.class);
-
-  private static ObjectMapper objectMapper = new ObjectMapper();
-
-  @Autowired
-  private UserDBService userDBService;
-
-  @Autowired
-  private MerchantDBService merchantDBService;
-
-  @Autowired
-  private BankDBService bankDBService;
-
-  @Autowired
-  private DipcoinDBService coinDBService;
-
-  @Autowired
-  private EmailUtils emailUtils;
-
-  @Autowired
-  private NotificationResource notificationResource;
-
-  @Autowired
-  private APIFeatureFlags apiFeatureFlags;
-
-  @Autowired
-  private SmsClient smsClient;
-
-  @Autowired
-  private CryptoUtil cryptoUtil;
-
-  @Autowired
-  private PartnerEncDecResource partnerEncDecResource;
-  
-  @Autowired
-  @Qualifier("com.dipcoin.metrics.DipcoinMetricRegistry")
-  private DipcoinMetricRegistry dipcoinMetricRegistry;
-
-  @Autowired
-  @Lazy
-  private HttpServletContext httpServletContext;
-  
-  @Autowired
-  private UserUtil userUtil;
-  
-  @Autowired
-  private OauthMetricRegistry oauthMetricRegistry;
-  
-  @Autowired
-  private UserEventResource userEventResource;
-  
-  @Autowired
-  private ApplicationProperties applicationProperties;
-
-
-  public void setHttpServletContext(HttpServletContext httpServletContext) {
-    super.setHttpServletContext(httpServletContext);
-    this.httpServletContext = httpServletContext;
-  }
-
-
-  public EmailUtils getEmailUtils() {
-    return emailUtils;
-  }
-
-
-  public PartnerEncDecResource getPartnerEncDecResource() {
-    return partnerEncDecResource;
-  }
-  
-  public UserEventResource getUserEventResource() {
-    return userEventResource;
-  }
-
-
-  /**
-   * Partner Process Dipcoin
-   * 
-   */
-
-  public ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser,
-      final Merchant merchant, final PartnerProcessDipcoinRequest dcoinReq,
-      TransactionSource source, Optional<Dipcoin> existingDcoin, final boolean encrypt)
-      throws Exception, APIException {
-    return processCustomerDipcoin(partnerUser, null, merchant, dcoinReq, source, existingDcoin,
-        encrypt);
-  }
-
-  public ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser, final Bank bank,
-      final PartnerProcessDipcoinRequest dcoinReq,
-
-      TransactionSource source, final boolean encrypt) throws Exception, APIException {
-
-    return processCustomerDipcoin(partnerUser, bank, null, dcoinReq, source, Optional.empty(),
-        encrypt);
-  }
-  
-  public ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser, final Bank bank,
-      final Merchant merchant, final PartnerProcessDipcoinRequest dcoinReq,
-      TransactionSource source, final boolean encrypt) throws Exception, APIException {
-
-    return processCustomerDipcoin(partnerUser, bank, merchant, dcoinReq, source, Optional.empty(),
-        encrypt);
-  }
-
-  private ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser,
-      final Bank bank, final Merchant merchant, final PartnerProcessDipcoinRequest dcoinReq,
-      TransactionSource source, Optional<Dipcoin> existingDcoin, final boolean encrypt)
-      throws Exception, APIException {
-
-    String originIp = httpServletContext.getOriginIp();
-    String requestTime = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
-    String dipcoinReferenceNumber = CoreUtils.generateDipcoinToMerchantReferenceNumber();
-    
-    AspectContext ctx = new AspectContext(applicationProperties.getRunAudit());
-    RequestMetadata requestMetadata = new  RequestMetadata("processCustomerDipcoin");
-    ctx.setAudit("ProcessDipcoin");
-    DipcoinThreadLocal.set(ctx);
-
-    PartnerProcessDipcoinResponse response = new PartnerProcessDipcoinResponse();
-    response.setRequestTime(requestTime);
-    response.setOstaTransactionReferenceId(dipcoinReferenceNumber);
-
-    // initiate transaction
-    DipcoinTransaction transaction = new DipcoinTransaction();
-    transaction.setSettlementDone(DipcoinTransactionSettlementDone.DEFAULT.value());
-    transaction.setRequestTime(requestTime);
-    transaction.setIPAddress(originIp);
-    transaction.setDipcoinTransactionRefId(dipcoinReferenceNumber);
-    transaction.setPartnerReferenceId(
-        merchant != null ? merchant.getReferenceId() : bank.getReferenceId());
-    transaction.setUser(partnerUser);
-
-    if (dcoinReq == null) {
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.BAD_REQUEST);
-      }
-      if (encrypt) {
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    } else {
-      // response fields
-      response.setPartnerTransactionReferenceId(dcoinReq.getPartnerTransactionReferenceId());
-
-      // transaction fields
-      transaction.setPartnerTransactionReferenceId(dcoinReq.getPartnerTransactionReferenceId());
-      transaction.setOrderId(dcoinReq.getOrderId());
-      transaction.setAmount(dcoinReq.getAmount());
-      transaction.setPartnerRawRequest(dcoinReq.getRawRequest());
-      transaction.setSource(source.value());
-      transaction.setUsageDetails(usageType(dcoinReq, merchant, bank, source));
-      transaction.setComments(dcoinReq.getComment());
-    }
-
-    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("request", dcoinReq)
-        .data("PartnerUser", partnerUser.getId())
-        .data("Merchant", merchant != null ? merchant.getId() : null)
-        .data("Bank", bank != null ? bank.getId() : null).format());
-
-    // validate request
-    if (!dcoinReq.validate(httpServletContext)) {
-      // save failure transaction
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCodes(dcoinReq.getErrorCodes());
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
-    LOG.debug(
-        LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching existing DTX")
-            .data("PartnerTransactionReferenceId", dcoinReq.getPartnerTransactionReferenceId())
-            .data("PartnerReferenceId",
-                merchant != null ? merchant.getReferenceId() : bank.getReferenceId())
-            .format());
-    // same transaction requested
-    List<DipcoinTransaction> existingDTxs = coinDBService
-        .asyncGetPartnerTransactions(
-            merchant != null ? merchant.getReferenceId() : bank.getReferenceId(),
-            Arrays.asList(dcoinReq.getPartnerTransactionReferenceId()), null, null, null, null)
-        .get();
-    if (!CollectionUtils.isEmpty(existingDTxs)) {
-
-      for (DipcoinTransaction dTx : existingDTxs) {
-        if (DBConstants.DipcoinTransactionType.PAYMENTGATEWAY_INITIATE.value() != dTx.getType() 
-        		&& DBConstants.DipcoinTransactionType.CHARGE_BACK.value() != dTx.getType()
-            && dTx.getStatus() == DipcoinTransactionsStatus.SUCCESS.value() ) {
-        response.setOstaTransactionReferenceId(null);
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-
-        if (source.equals(TransactionSource.OAUTH)) {
-          response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        } else {
-          response.addHeaderCode(HeaderCode.BAD_REQUEST);
-        }
-        if (encrypt) {
-          response.setAmount(dcoinReq.getAmount().toString());
-          PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-              merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-          partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-          
-          //state saved in queue
-          userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-                  ,Integer.toString(existingDTxs.get(0).getDipcoinId()));
-          
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-        }
-        
-      //state saved in queue
-        userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-                ,Integer.toString(existingDTxs.get(0).getDipcoinId()));
-        
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-      }
-      }
-    }
-
-    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-        .message("Verifying Bank/Merchant user").format());
-    if (!(this.userDBService.bankRepresentative(partnerUser)
-        || this.userDBService.merchantRepresentative(partnerUser))
-        || !this.userDBService.isActive(partnerUser)) {
-      
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Uauthorized User")
-          .format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED,
-          HeaderCode.USER_UNAUTHORIZED);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.BAD_REQUEST);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
-
-    // AsyncTask - verify merchant. merchant ID and incoming IP should be
-    // associated
-
-    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Verifying Merchant")
-        .format());
-    if ((merchant != null && !this.merchantDBService.isActive(merchant))
-        || (bank != null && !this.bankDBService.isActive(bank))) {
-      
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-      
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-          .message("Invalid/Inactive Merchant/Bank").format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED,
-          HeaderCode.USER_UNAUTHORIZED);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(
-            merchant != null ? HeaderCode.MERCHANT_NOT_ACTIVE : HeaderCode.BANK_NOT_ACTIVE);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
-
-    // if dipcoin invalid
-    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Validating Dipcoin")
-        .data("Dipcoin", dcoinReq.getOsta()).format());
-
-    Pair<String, String> dcoinSegments = CoreUtils.parseDipcoinToken(dcoinReq.getOsta());
-    if (dcoinSegments == null || (existingDcoin.isPresent()
-        && !existingDcoin.get().getCoin().equals(dcoinSegments.getRight()))) {
-      
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-      
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid Dipcoin")
-          .data("dcoin", dcoinReq.getOsta()).format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.BAD_REQUEST);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
-    // if dipcoin not provided fetch based on requested coin
-    Dipcoin dcoin =
-        (existingDcoin != null && existingDcoin.isPresent()) ? existingDcoin.get() : null;
-    if (dcoin == null) {
-      // parse incoming dipcoin
-      if (dcoinSegments == null || (existingDcoin.isPresent()
-          && !existingDcoin.get().getCoin().equals(dcoinSegments.getRight()))) {
-        
-      //state saved in queue
-        userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-              , dcoinReq.getOsta());
-        
-        // save failure transaction
-        LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid Dipcoin")
-            .data("dcoin", dcoinReq.getOsta()).format());
-        saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
-
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-        if (source.equals(TransactionSource.OAUTH)) {
-          response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        } else {
-          response.addHeaderCode(HeaderCode.BAD_REQUEST);
-        }
-        if (encrypt) {
-          response.setAmount(dcoinReq.getAmount().toString());
-          PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-              merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-      }
-
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching User")
-          .data("phone", dcoinSegments.getLeft()).format());
-
-      // get dipcoin by coin
-      /*
-       * Dipcoin dipcoin = this.coinDBService.getDipcoin(dcoinSegments.getRight());
-       * 
-       * User owner = dipcoin.getUser();
-       */
-
-      // User owner = this.userDBService.getUser(dcoinSegments.getLeft());
-      User owner = null;
-      if (dcoinReq.getWalletUser()) {
-        owner = this.userDBService
-            .getUsers(dcoinSegments.getLeft(), merchant.getId(),
-                Arrays.asList(UserRoles.VIRTUAL_CUSTOMER.value(),
-                    UserRoles.VIRTUAL_MERCHANT.value()),
-                DBConstants.UserStatus.ACTIVE.value())
-            .get(0);
-
-      } else if (StringUtils.isNotEmpty(dcoinReq.getPartnerReferenceId()) && dcoinReq.getRestrictedUsage()) {
-
-        Bank bbpsBranchBank =this.bankDBService.getBank(dcoinReq.getPartnerReferenceId());
-
-        if(bbpsBranchBank == null) {
-        //state saved in queue
-          userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-                , dcoinReq.getOsta());
-          saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-              HeaderCode.BANK_DOESNT_EXISTS);
-
-          response.addHeaderCode(HeaderCode.BANK_DOESNT_EXISTS);
-          response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-        }
-
-        if(!bankDBService.isActive(bbpsBranchBank)) {
-        //state saved in queue
-          userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-                , dcoinReq.getOsta());
-          saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED,
-              HeaderCode.BANK_NOT_ACTIVE);
-
-          response.addHeaderCode(HeaderCode.BANK_NOT_ACTIVE);
-          response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-        }
-
-        owner = this.userDBService.getUsers(dcoinSegments.getLeft(), bbpsBranchBank.getId(),
-            Arrays.asList(UserRoles.VIRTUAL_BANK.value()), DBConstants.UserStatus.ACTIVE.value())
-            .get(0);
-        
-        if(owner == null) {
-          LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid User")
-              .data("phone", dcoinSegments.getLeft()).format());
-        //state saved in queue
-          userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-                , dcoinReq.getOsta());
-          saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-              HeaderCode.USER_DOESNT_EXIST);
-          response.addHeaderCode(HeaderCode.USER_DOESNT_EXIST);
-          response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-        }
-
-      }
-      else {
-        
-        
-        if(source == TransactionSource.TOLL ) {
-           owner =  this.userDBService.getUsersByPhone(Arrays.asList(UserRoles.CUSTOMER.value()),
-               NumberUtils.INTEGER_ZERO, dcoinSegments.getLeft());
-        } else {
-          List<User> owners = this.userDBService.getUsers(dcoinSegments.getLeft(), 0,
-              Arrays.asList(UserRoles.CUSTOMER.value()), DBConstants.UserStatus.ACTIVE.value());
-
-           if(CollectionUtils.isEmpty(owners)) {
-             response.addHeaderCode(HeaderCode.USER_DOESNT_EXIST);
-             response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-           }
-           
-           owner = owners.get(NumberUtils.INTEGER_ZERO);
-        }        
-       
-      }
-
-      if (owner == null) {
-        
-      //state saved in queue
-        userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-              , dcoinReq.getOsta());
-        
-        // save failure transaction
-        LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid User")
-            .data("phone", dcoinSegments.getLeft()).format());
-        saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-            HeaderCode.USER_INVALID_PHONENUM);
-
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-        if (source.equals(TransactionSource.OAUTH)) {
-          response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        } else {
-          response.addHeaderCode(HeaderCode.USER_INVALID_PHONENUM);
-        }
-        if (encrypt) {
-          response.setAmount(dcoinReq.getAmount().toString());
-          PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-              merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-      }
-      
-      ctx.setUserId(String.valueOf(owner.getId()));
-      DipcoinThreadLocal.set(ctx);
-
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-          .message("Fetching User Dipcoin").data("phone", dcoinSegments.getLeft())
-          .data("Dipcoin", dcoinSegments.getRight()).format());
-
-      //@formatter:on
-      // Session validation
-
-      if (owner.getRole().equals(DBConstants.UserRoles.VIRTUAL_CUSTOMER.value())
-          || owner.getRole().equals(DBConstants.UserRoles.VIRTUAL_MERCHANT.value())) {
-        // don't check session
-
-      } else {
-        if (source.equals(TransactionSource.OAUTH) || source.equals(TransactionSource.JS)) {
-          if (!Hibernate.isInitialized(owner.getSessions())) {
-            Hibernate.initialize(owner.getSessions());
-          }
-          Pair<Boolean, List<Session>> sessionPair = CoreUtils.isEmptyList(owner.getSessions());
-          Session session = !sessionPair.getLeft() ? sessionPair.getRight().get(0) : null;
-          if (session == null
-              || DateTime.now(DateTimeZone.UTC).isAfter(Long.parseLong(session.getStopTime()))) {
-          //state saved in queue
-            userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-                  , dcoinReq.getOsta());
-            
-            saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-                HeaderCode.BAD_REQUEST);
-
-            response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-            if (source.equals(TransactionSource.OAUTH)) {
-              response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-            } else {
-              response.addHeaderCode(HeaderCode.INVALID_SESSION);
-            }
-            if (encrypt) {
-              response.setAmount(dcoinReq.getAmount().toString());
-              PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-                  merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-              return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-            }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-          }
-          if (dcoinReq.getAmount().compareTo(DBConstants.MIN_NOTIFICATION_AMOUNT) >= 0) { // if
-                                                                                          // needed
-                                                                                          // only in
-                                                                                          // prod
-                                                                                          // then
-                                                                                          // add
-                                                                                          // this -
-                                                                                          // &&
-                                                                                          // httpServletContext.isProdEnvironment())
-                                                                                          // {
-            // notification set as true if prod
-            ClientFeatureFlags clientFeatureFlags = ClientFeatureFlags.instance();
-            clientFeatureFlags.setNotificationEnabled(APIFeatureFlags.notificationEnabled());
-            httpServletContext.setClientFeatureFlags(clientFeatureFlags);
-          }
-        }
-
-      }
-      dcoin = this.coinDBService.asyncGetCoin(owner.getId(), dcoinSegments.getRight(), true).get();
-
-      if (dcoin == null) {
-      //state saved in queue
-        userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-              , dcoinReq.getOsta());
-        
-        // save failure transaction
-        LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-            .message("Failed to fetch dcoin").data("dcoin", dcoinSegments).format());
-        saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-            HeaderCode.DIPCOIN_DOESNT_EXIST);
-
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-        if (source.equals(TransactionSource.OAUTH)) {
-          response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        } else {
-          response.addHeaderCode(HeaderCode.DIPCOIN_DOESNT_EXIST);
-        }
-        if (encrypt) {
-          response.setAmount(dcoinReq.getAmount().toString());
-          PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-              merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-      }
-    }
-    
-    if (source.equals(TransactionSource.OAUTH) && dcoin.getUsageType() != DipcoinUsageType.WALLET.value() && dcoin.getCustomerAccount()
-        .getTypeOfMethod() == DBConstants.CustomerAccountMethodType.WALLET_INB.value()) {
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-      
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-          .message("Invalid Dipcoin used is OAuth Transaction").format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-          HeaderCode.DIPCOIN_INVALID);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.DIPCOIN_INVALID);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
-    // validate account active
-    CustomerAccount account = dcoin.getCustomerAccount();
-    if (account == null || !CustomerAccountStatus.ACTIVE.equals(account.getStatus())) {
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-          .message("Failed to fetch CustomerAccount").format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED,
-          HeaderCode.USER_UNAUTHORIZED);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.USER_ACCOUNT_INACTIVE);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-    
-    ctx.setCustomerAccountId(Integer.toString(account.getId()));
-    DipcoinThreadLocal.set(ctx);
-
-    // update transaction
-    transaction.setDipcoinId(dcoin.getId());
-    transaction.setCustomerAccountId(account.getId());
-    transaction.setUpdateDate(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-    transaction.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-    
-    if (DipcoinUsageType.RESTRICTED_BBPS_CASH.ordinal() == dcoin.getUsageType()
-        || DipcoinUsageType.RESTRICTED_BBPS_FUND_TRANSFER.ordinal() == dcoin.getUsageType()) {
-
-      if(!DBConstants.MerchantBusinessSegment.RECHARGE_BILLPAYMENTS.equals(merchant.getBusinessSegment())) {
-
-      //state saved in queue
-        userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-              , dcoinReq.getOsta());
-        
-        LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-            .message("Unauthorized User").format());
-        saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED,
-            HeaderCode.ACCESS_FORBIDDEN);
-
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-        response.addHeaderCode(HeaderCode.ACCESS_FORBIDDEN);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-      }
-    }
-
-    // @NOTE - since the request can come from both ATM (i,e BI) and Customer,
-    // we fetch the user from Account instead of User passed from ATM type
-    if (!Hibernate.isInitialized(account.getUser())) {
-      Hibernate.initialize(account.getUser());
-    }
-    User dipcoinOwner = account.getUser();
-    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching owner")
-        .data("User", dipcoinOwner.getId()).format());
-    
-    
-    // rules are applied before processing the request further
-    boolean processRequest = userEventResource.applyRule(dipcoinOwner,partnerUser,Integer.toString(dcoin.getId()),
-            requestTime,
-            ProcessEvent.EventType.OstaUsage
-            ,EventUtils.dipcoinUsageFailure);
-    
-          
-            if(!processRequest) {
-            
-              return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            } 
-
-      //state saved in queue
-      userEventResource.processInQueue(dipcoinOwner, requestTime,  EventUtils.dipcoinUsageInprocess
-                , Integer.toString(dcoin.getId()));
-      
-      
-    if (TransactionSource.ATM.equals(source)) {
-      LOG.debug(
-          LogFormatter.instance(httpServletContext.getTraceId()).message("ATM Request").format());
-      // if the owner is inactive
-      if (!this.userDBService.isActive(dipcoinOwner)) {
-      //state saved in queue
-        userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-              , dcoinReq.getOsta());
-        
-        // save failure transaction
-        LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-            .message("Unauthorized User").format());
-        saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED,
-            HeaderCode.USER_UNAUTHORIZED);
-
-        response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-        if (source.equals(TransactionSource.OAUTH)) {
-          response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-        } else {
-          response.addHeaderCode(HeaderCode.USER_UNAUTHORIZED);
-        }
-        if (encrypt) {
-          response.setAmount(dcoinReq.getAmount().toString());
-          PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-              merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-
-      }
-
-      transaction.setUser(dipcoinOwner);
-    }
-
-    Long now = DateTime.now(DateTimeZone.UTC).getMillis();
-    if (!DipcoinStatus.ACTIVE.equals(dcoin.getStatus())) {
-      
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-      
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Dipcoin not active")
-          .format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-          HeaderCode.DIPCOIN_NOT_ACTIVE);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.DIPCOIN_NOT_ACTIVE);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-
-    } else if (now > Long.parseLong(dcoin.getExpiryTime())) {
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("NOW", now)
-          .data("ExpiryTime", Long.parseLong(dcoin.getExpiryTime())).format());
-      
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Dipcoin expired")
-          .format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-          HeaderCode.DIPCOIN_EXPIRED);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.DIPCOIN_EXPIRED);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-
-    } else if (dcoinReq.getAmount().compareTo(dcoin.getAmount()) > 0) {
-      // @TODO - if bank ATM request, fetch bank commisiion & the send notification to user on the
-      // amount that can be used
-
-    //state saved in queue
-      userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure
-            , dcoinReq.getOsta());
-      
-      // save failure transaction
-      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-          .message("Dipcoin insufficient funds").format());
-      saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST,
-          HeaderCode.DIPCOIN_INSUFFICIENT_FUNDS);
-
-      response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-      if (source.equals(TransactionSource.OAUTH)) {
-        response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
-      } else {
-        response.addHeaderCode(HeaderCode.DIPCOIN_INSUFFICIENT_FUNDS);
-      }
-      if (encrypt) {
-        response.setAmount(dcoinReq.getAmount().toString());
-        PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
-            merchant.getReferenceId(), objectMapper.writeValueAsString(response));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
-      }
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
-    // These changes are made due these issues
-    // https://github.com/dipcoin/dipcoin-api-system/issues/828 and
-    // https://github.com/dipcoin/dipcoin-api-system/issues/813.
-    // The following code commented to for convenience sake in future.
-
-    //@formatter:off
+	private static final Logger LOG = LogManager.getLogger(PartnerDipcoinResource.class);
+
+	private static ObjectMapper objectMapper = new ObjectMapper();
+
+	@Autowired
+	private UserDBService userDBService;
+
+	@Autowired
+	private MerchantDBService merchantDBService;
+
+	@Autowired
+	private BankDBService bankDBService;
+
+	@Autowired
+	private DipcoinDBService coinDBService;
+
+	@Autowired
+	private EmailUtils emailUtils;
+
+	@Autowired
+	private NotificationResource notificationResource;
+
+	@Autowired
+	private APIFeatureFlags apiFeatureFlags;
+
+	@Autowired
+	private SmsClient smsClient;
+
+	@Autowired
+	private CryptoUtil cryptoUtil;
+
+	@Autowired
+	private PartnerEncDecResource partnerEncDecResource;
+
+	@Autowired
+	@Qualifier("com.dipcoin.metrics.DipcoinMetricRegistry")
+	private DipcoinMetricRegistry dipcoinMetricRegistry;
+
+	@Autowired
+	@Lazy
+	private HttpServletContext httpServletContext;
+
+	@Autowired
+	private UserUtil userUtil;
+
+	@Autowired
+	private OauthMetricRegistry oauthMetricRegistry;
+
+	@Autowired
+	private UserEventResource userEventResource;
+
+	@Autowired
+	private ApplicationProperties applicationProperties;
+
+	public void setHttpServletContext(HttpServletContext httpServletContext) {
+		super.setHttpServletContext(httpServletContext);
+		this.httpServletContext = httpServletContext;
+	}
+
+	public EmailUtils getEmailUtils() {
+		return emailUtils;
+	}
+
+	public PartnerEncDecResource getPartnerEncDecResource() {
+		return partnerEncDecResource;
+	}
+
+	public UserEventResource getUserEventResource() {
+		return userEventResource;
+	}
+
+	/**
+	 * Partner Process Dipcoin
+	 * 
+	 */
+
+	public ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser, final Merchant merchant,
+			final PartnerProcessDipcoinRequest dcoinReq, TransactionSource source, Optional<Dipcoin> existingDcoin,
+			final boolean encrypt) throws Exception, APIException {
+		return processCustomerDipcoin(partnerUser, null, merchant, dcoinReq, source, existingDcoin, encrypt);
+	}
+
+	public ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser, final Bank bank,
+			final PartnerProcessDipcoinRequest dcoinReq,
+
+			TransactionSource source, final boolean encrypt) throws Exception, APIException {
+
+		return processCustomerDipcoin(partnerUser, bank, null, dcoinReq, source, Optional.empty(), encrypt);
+	}
+
+	public ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser, final Bank bank,
+			final Merchant merchant, final PartnerProcessDipcoinRequest dcoinReq, TransactionSource source,
+			final boolean encrypt) throws Exception, APIException {
+
+		return processCustomerDipcoin(partnerUser, bank, merchant, dcoinReq, source, Optional.empty(), encrypt);
+	}
+
+	private ResponseEntity<APIResponse> processCustomerDipcoin(final User partnerUser, final Bank bank,
+			final Merchant merchant, final PartnerProcessDipcoinRequest dcoinReq, TransactionSource source,
+			Optional<Dipcoin> existingDcoin, final boolean encrypt) throws Exception, APIException {
+
+		String originIp = httpServletContext.getOriginIp();
+		String requestTime = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
+		String dipcoinReferenceNumber = CoreUtils.generateDipcoinToMerchantReferenceNumber();
+
+		AspectContext ctx = new AspectContext(applicationProperties.getRunAudit());
+		RequestMetadata requestMetadata = new RequestMetadata("processCustomerDipcoin");
+		ctx.setAudit("ProcessDipcoin");
+		DipcoinThreadLocal.set(ctx);
+
+		PartnerProcessDipcoinResponse response = new PartnerProcessDipcoinResponse();
+		response.setRequestTime(requestTime);
+		response.setOstaTransactionReferenceId(dipcoinReferenceNumber);
+
+		// initiate transaction
+		DipcoinTransaction transaction = new DipcoinTransaction();
+		transaction.setSettlementDone(DipcoinTransactionSettlementDone.DEFAULT.value());
+		transaction.setRequestTime(requestTime);
+		transaction.setIPAddress(originIp);
+		transaction.setDipcoinTransactionRefId(dipcoinReferenceNumber);
+		transaction.setPartnerReferenceId(merchant != null ? merchant.getReferenceId() : bank.getReferenceId());
+		transaction.setUser(partnerUser);
+
+		if (dcoinReq == null) {
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.BAD_REQUEST);
+			}
+			if (encrypt) {
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		} else {
+			// response fields
+			response.setPartnerTransactionReferenceId(dcoinReq.getPartnerTransactionReferenceId());
+
+			// transaction fields
+			transaction.setPartnerTransactionReferenceId(dcoinReq.getPartnerTransactionReferenceId());
+			transaction.setOrderId(dcoinReq.getOrderId());
+			transaction.setAmount(dcoinReq.getAmount());
+			transaction.setPartnerRawRequest(dcoinReq.getRawRequest());
+			transaction.setSource(source.value());
+			transaction.setUsageDetails(usageType(dcoinReq, merchant, bank, source));
+			transaction.setComments(dcoinReq.getComment());
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("request", dcoinReq)
+				.data("PartnerUser", partnerUser.getId()).data("Merchant", merchant != null ? merchant.getId() : null)
+				.data("Bank", bank != null ? bank.getId() : null).format());
+
+		// validate request
+		if (!dcoinReq.validate(httpServletContext)) {
+			// save failure transaction
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCodes(dcoinReq.getErrorCodes());
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching existing DTX")
+				.data("PartnerTransactionReferenceId", dcoinReq.getPartnerTransactionReferenceId())
+				.data("PartnerReferenceId", merchant != null ? merchant.getReferenceId() : bank.getReferenceId())
+				.format());
+		// same transaction requested
+		List<DipcoinTransaction> existingDTxs = coinDBService
+				.asyncGetPartnerTransactions(merchant != null ? merchant.getReferenceId() : bank.getReferenceId(),
+						Arrays.asList(dcoinReq.getPartnerTransactionReferenceId()), null, null, null, null)
+				.get();
+		if (!CollectionUtils.isEmpty(existingDTxs)) {
+
+			for (DipcoinTransaction dTx : existingDTxs) {
+				if (DBConstants.DipcoinTransactionType.PAYMENTGATEWAY_INITIATE.value() != dTx.getType()
+						&& DBConstants.DipcoinTransactionType.CHARGE_BACK.value() != dTx.getType()
+						&& dTx.getStatus() == DipcoinTransactionsStatus.SUCCESS.value()) {
+					response.setOstaTransactionReferenceId(null);
+					response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+
+					if (source.equals(TransactionSource.OAUTH)) {
+						response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+					} else {
+						response.addHeaderCode(HeaderCode.BAD_REQUEST);
+					}
+					if (encrypt) {
+						response.setAmount(dcoinReq.getAmount().toString());
+						PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
+								merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+						partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+
+						// state saved in queue
+						userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+								Integer.toString(existingDTxs.get(0).getDipcoinId()));
+
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+					}
+
+					// state saved in queue
+					userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+							Integer.toString(existingDTxs.get(0).getDipcoinId()));
+
+					response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+				}
+			}
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Verifying Bank/Merchant user")
+				.format());
+		if (!(this.userDBService.bankRepresentative(partnerUser)
+				|| this.userDBService.merchantRepresentative(partnerUser))
+				|| !this.userDBService.isActive(partnerUser)) {
+
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Uauthorized User").format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED, HeaderCode.USER_UNAUTHORIZED);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.BAD_REQUEST);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+		}
+
+		// AsyncTask - verify merchant. merchant ID and incoming IP should be
+		// associated
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Verifying Merchant").format());
+		if ((merchant != null && !this.merchantDBService.isActive(merchant))
+				|| (bank != null && !this.bankDBService.isActive(bank))) {
+
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid/Inactive Merchant/Bank")
+					.format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED, HeaderCode.USER_UNAUTHORIZED);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(merchant != null ? HeaderCode.MERCHANT_NOT_ACTIVE : HeaderCode.BANK_NOT_ACTIVE);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+		}
+
+		// if dipcoin invalid
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Validating Dipcoin")
+				.data("Dipcoin", dcoinReq.getOsta()).format());
+
+		Pair<String, String> dcoinSegments = CoreUtils.parseDipcoinToken(dcoinReq.getOsta());
+		if (dcoinSegments == null
+				|| (existingDcoin.isPresent() && !existingDcoin.get().getCoin().equals(dcoinSegments.getRight()))) {
+
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid Dipcoin")
+					.data("dcoin", dcoinReq.getOsta()).format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.BAD_REQUEST);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				partnerResponse.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		}
+
+		// if dipcoin not provided fetch based on requested coin
+		Dipcoin dcoin = (existingDcoin != null && existingDcoin.isPresent()) ? existingDcoin.get() : null;
+		if (dcoin == null) {
+			// parse incoming dipcoin
+			if (dcoinSegments == null
+					|| (existingDcoin.isPresent() && !existingDcoin.get().getCoin().equals(dcoinSegments.getRight()))) {
+
+				// state saved in queue
+				userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+						dcoinReq.getOsta());
+
+				// save failure transaction
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid Dipcoin")
+						.data("dcoin", dcoinReq.getOsta()).format());
+				saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
+
+				response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+				if (source.equals(TransactionSource.OAUTH)) {
+					response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				} else {
+					response.addHeaderCode(HeaderCode.BAD_REQUEST);
+				}
+				if (encrypt) {
+					response.setAmount(dcoinReq.getAmount().toString());
+					PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
+							merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+				}
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			}
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching User")
+					.data("phone", dcoinSegments.getLeft()).format());
+
+			// get dipcoin by coin
+			/*
+			 * Dipcoin dipcoin = this.coinDBService.getDipcoin(dcoinSegments.getRight());
+			 * 
+			 * User owner = dipcoin.getUser();
+			 */
+
+			// User owner = this.userDBService.getUser(dcoinSegments.getLeft());
+			User owner = null;
+			if (dcoinReq.getWalletUser()) {
+				owner = this.userDBService.getUsers(dcoinSegments.getLeft(), merchant.getId(),
+						Arrays.asList(UserRoles.VIRTUAL_CUSTOMER.value(), UserRoles.VIRTUAL_MERCHANT.value()),
+						DBConstants.UserStatus.ACTIVE.value()).get(0);
+
+			} else if (StringUtils.isNotEmpty(dcoinReq.getPartnerReferenceId()) && dcoinReq.getRestrictedUsage()) {
+
+				Bank bbpsBranchBank = this.bankDBService.getBank(dcoinReq.getPartnerReferenceId());
+
+				if (bbpsBranchBank == null) {
+					// state saved in queue
+					userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+							dcoinReq.getOsta());
+					saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BANK_DOESNT_EXISTS);
+
+					response.addHeaderCode(HeaderCode.BANK_DOESNT_EXISTS);
+					response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+				}
+
+				if (!bankDBService.isActive(bbpsBranchBank)) {
+					// state saved in queue
+					userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+							dcoinReq.getOsta());
+					saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED, HeaderCode.BANK_NOT_ACTIVE);
+
+					response.addHeaderCode(HeaderCode.BANK_NOT_ACTIVE);
+					response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+					return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+				}
+
+				owner = this.userDBService
+						.getUsers(dcoinSegments.getLeft(), bbpsBranchBank.getId(),
+								Arrays.asList(UserRoles.VIRTUAL_BANK.value()), DBConstants.UserStatus.ACTIVE.value())
+						.get(0);
+
+				if (owner == null) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid User")
+							.data("phone", dcoinSegments.getLeft()).format());
+					// state saved in queue
+					userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+							dcoinReq.getOsta());
+					saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.USER_DOESNT_EXIST);
+					response.addHeaderCode(HeaderCode.USER_DOESNT_EXIST);
+					response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+					return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+				}
+
+			} else {
+
+				if (source == TransactionSource.TOLL) {
+					owner = this.userDBService.getUsersByPhone(Arrays.asList(UserRoles.CUSTOMER.value()),
+							NumberUtils.INTEGER_ZERO, dcoinSegments.getLeft());
+				} else {
+					List<User> owners = this.userDBService.getUsers(dcoinSegments.getLeft(), 0,
+							Arrays.asList(UserRoles.CUSTOMER.value()), DBConstants.UserStatus.ACTIVE.value());
+
+					if (CollectionUtils.isEmpty(owners)) {
+						response.addHeaderCode(HeaderCode.USER_DOESNT_EXIST);
+						response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+						return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+					}
+
+					owner = owners.get(NumberUtils.INTEGER_ZERO);
+				}
+
+			}
+
+			if (owner == null) {
+
+				// state saved in queue
+				userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+						dcoinReq.getOsta());
+
+				// save failure transaction
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Invalid User")
+						.data("phone", dcoinSegments.getLeft()).format());
+				saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.USER_INVALID_PHONENUM);
+
+				response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+				if (source.equals(TransactionSource.OAUTH)) {
+					response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				} else {
+					response.addHeaderCode(HeaderCode.USER_INVALID_PHONENUM);
+				}
+				if (encrypt) {
+					response.setAmount(dcoinReq.getAmount().toString());
+					PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
+							merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+				}
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			}
+
+			ctx.setUserId(String.valueOf(owner.getId()));
+			DipcoinThreadLocal.set(ctx);
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching User Dipcoin")
+					.data("phone", dcoinSegments.getLeft()).data("Dipcoin", dcoinSegments.getRight()).format());
+
+			//@formatter:on
+			// Session validation
+
+			if (owner.getRole().equals(DBConstants.UserRoles.VIRTUAL_CUSTOMER.value())
+					|| owner.getRole().equals(DBConstants.UserRoles.VIRTUAL_MERCHANT.value())) {
+				// don't check session
+
+			} else {
+				if (source.equals(TransactionSource.OAUTH) || source.equals(TransactionSource.JS)) {
+					if (!Hibernate.isInitialized(owner.getSessions())) {
+						Hibernate.initialize(owner.getSessions());
+					}
+					Pair<Boolean, List<Session>> sessionPair = CoreUtils.isEmptyList(owner.getSessions());
+					Session session = !sessionPair.getLeft() ? sessionPair.getRight().get(0) : null;
+					if (session == null
+							|| DateTime.now(DateTimeZone.UTC).isAfter(Long.parseLong(session.getStopTime()))) {
+						// state saved in queue
+						userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+								dcoinReq.getOsta());
+
+						saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.BAD_REQUEST);
+
+						response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+						if (source.equals(TransactionSource.OAUTH)) {
+							response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+						} else {
+							response.addHeaderCode(HeaderCode.INVALID_SESSION);
+						}
+						if (encrypt) {
+							response.setAmount(dcoinReq.getAmount().toString());
+							PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
+									merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+							return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+						}
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+					}
+					if (dcoinReq.getAmount().compareTo(DBConstants.MIN_NOTIFICATION_AMOUNT) >= 0) { // if
+																									// needed
+																									// only in
+																									// prod
+																									// then
+																									// add
+																									// this -
+																									// &&
+																									// httpServletContext.isProdEnvironment())
+																									// {
+						// notification set as true if prod
+						ClientFeatureFlags clientFeatureFlags = ClientFeatureFlags.instance();
+						clientFeatureFlags.setNotificationEnabled(APIFeatureFlags.notificationEnabled());
+						httpServletContext.setClientFeatureFlags(clientFeatureFlags);
+					}
+				}
+
+			}
+			dcoin = this.coinDBService.asyncGetCoin(owner.getId(), dcoinSegments.getRight(), true).get();
+
+			if (dcoin == null) {
+				// state saved in queue
+				userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+						dcoinReq.getOsta());
+
+				// save failure transaction
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to fetch dcoin")
+						.data("dcoin", dcoinSegments).format());
+				saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.DIPCOIN_DOESNT_EXIST);
+
+				response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+				if (source.equals(TransactionSource.OAUTH)) {
+					response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				} else {
+					response.addHeaderCode(HeaderCode.DIPCOIN_DOESNT_EXIST);
+				}
+				if (encrypt) {
+					response.setAmount(dcoinReq.getAmount().toString());
+					PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
+							merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+				}
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			}
+		}
+
+		if (source.equals(TransactionSource.OAUTH) && dcoin.getUsageType() != DipcoinUsageType.WALLET.value() && dcoin
+				.getCustomerAccount().getTypeOfMethod() == DBConstants.CustomerAccountMethodType.WALLET_INB.value()) {
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Invalid Dipcoin used is OAuth Transaction").format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.DIPCOIN_INVALID);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.DIPCOIN_INVALID);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		}
+
+		// validate account active
+		CustomerAccount account = dcoin.getCustomerAccount();
+		if (account == null || !CustomerAccountStatus.ACTIVE.equals(account.getStatus())) {
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to fetch CustomerAccount")
+					.format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED, HeaderCode.USER_UNAUTHORIZED);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.USER_ACCOUNT_INACTIVE);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		}
+
+		ctx.setCustomerAccountId(Integer.toString(account.getId()));
+		DipcoinThreadLocal.set(ctx);
+
+		// update transaction
+		transaction.setDipcoinId(dcoin.getId());
+		transaction.setCustomerAccountId(account.getId());
+		transaction.setUpdateDate(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+		transaction.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+
+		if (DipcoinUsageType.RESTRICTED_BBPS_CASH.ordinal() == dcoin.getUsageType()
+				|| DipcoinUsageType.RESTRICTED_BBPS_FUND_TRANSFER.ordinal() == dcoin.getUsageType()) {
+
+			if (!DBConstants.MerchantBusinessSegment.RECHARGE_BILLPAYMENTS.equals(merchant.getBusinessSegment())) {
+
+				// state saved in queue
+				userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+						dcoinReq.getOsta());
+
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Unauthorized User").format());
+				saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED, HeaderCode.ACCESS_FORBIDDEN);
+
+				response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+				response.addHeaderCode(HeaderCode.ACCESS_FORBIDDEN);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			}
+		}
+
+		// @NOTE - since the request can come from both ATM (i,e BI) and Customer,
+		// we fetch the user from Account instead of User passed from ATM type
+		if (!Hibernate.isInitialized(account.getUser())) {
+			Hibernate.initialize(account.getUser());
+		}
+		User dipcoinOwner = account.getUser();
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching owner")
+				.data("User", dipcoinOwner.getId()).format());
+
+		// rules are applied before processing the request further
+		boolean processRequest = userEventResource.applyRule(dipcoinOwner, partnerUser, Integer.toString(dcoin.getId()),
+				requestTime, ProcessEvent.EventType.OstaUsage, EventUtils.dipcoinUsageFailure);
+
+		if (!processRequest) {
+
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+		}
+
+		// state saved in queue
+		userEventResource.processInQueue(dipcoinOwner, requestTime, EventUtils.dipcoinUsageInprocess,
+				Integer.toString(dcoin.getId()));
+
+		if (TransactionSource.ATM.equals(source)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("ATM Request").format());
+			// if the owner is inactive
+			if (!this.userDBService.isActive(dipcoinOwner)) {
+				// state saved in queue
+				userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+						dcoinReq.getOsta());
+
+				// save failure transaction
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Unauthorized User").format());
+				saveFailureDipcoinTransaction(transaction, HttpStatus.UNAUTHORIZED, HeaderCode.USER_UNAUTHORIZED);
+
+				response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+				if (source.equals(TransactionSource.OAUTH)) {
+					response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+				} else {
+					response.addHeaderCode(HeaderCode.USER_UNAUTHORIZED);
+				}
+				if (encrypt) {
+					response.setAmount(dcoinReq.getAmount().toString());
+					PartnerResponse partnerResponse = partnerEncDecResource.encryptPartnerResponse(
+							merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+				}
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+
+			}
+
+			transaction.setUser(dipcoinOwner);
+		}
+
+		Long now = DateTime.now(DateTimeZone.UTC).getMillis();
+		if (!DipcoinStatus.ACTIVE.equals(dcoin.getStatus())) {
+
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Dipcoin not active").format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.DIPCOIN_NOT_ACTIVE);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.DIPCOIN_NOT_ACTIVE);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+
+		} else if (now > Long.parseLong(dcoin.getExpiryTime())) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("NOW", now)
+					.data("ExpiryTime", Long.parseLong(dcoin.getExpiryTime())).format());
+
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Dipcoin expired").format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.DIPCOIN_EXPIRED);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.DIPCOIN_EXPIRED);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+
+		} else if (dcoinReq.getAmount().compareTo(dcoin.getAmount()) > 0) {
+			// @TODO - if bank ATM request, fetch bank commisiion & the send notification to
+			// user on the
+			// amount that can be used
+
+			// state saved in queue
+			userEventResource.processInQueue(partnerUser, requestTime, EventUtils.dipcoinUsageFailure,
+					dcoinReq.getOsta());
+
+			// save failure transaction
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Dipcoin insufficient funds")
+					.format());
+			saveFailureDipcoinTransaction(transaction, HttpStatus.BAD_REQUEST, HeaderCode.DIPCOIN_INSUFFICIENT_FUNDS);
+
+			response.setResponseTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+			if (source.equals(TransactionSource.OAUTH)) {
+				response.addHeaderCode(HeaderCode.TRANSACTION_FAILURE);
+			} else {
+				response.addHeaderCode(HeaderCode.DIPCOIN_INSUFFICIENT_FUNDS);
+			}
+			if (encrypt) {
+				response.setAmount(dcoinReq.getAmount().toString());
+				PartnerResponse partnerResponse = partnerEncDecResource
+						.encryptPartnerResponse(merchant.getReferenceId(), objectMapper.writeValueAsString(response));
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(partnerResponse);
+			}
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		}
+
+		// These changes are made due these issues
+		// https://github.com/dipcoin/dipcoin-api-system/issues/828 and
+		// https://github.com/dipcoin/dipcoin-api-system/issues/813.
+		// The following code commented to for convenience sake in future.
+
+	//@formatter:off
     // if ATM type then compute commission and validate
     /*if (RequestSource.ATM.equals(source)) {
       if (dcoin.getUsageType() != DipcoinUsageType.ATM.value()) {

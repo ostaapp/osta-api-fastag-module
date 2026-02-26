@@ -75,6 +75,54 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
 				request, RegistrationType.DEFAULT.value(), clientTransactionId);
 	}
+	
+	// Endpoint for APK
+	@PostMapping("register/apk")
+	@ApiOperation(value = "Registeration Details for toll services customer from apk", notes = "API to add a new customer account from apk.", response = TollRegistrationResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity registerTollCustomerMobile(@RequestBody String request,
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, request,
+				RegistrationType.DEFAULT.value(), clientTransactionId);
+	}
+	
+	@PutMapping("register")
+	@ApiOperation(value = "Toll Customer Update Account", notes = "API to update existing Toll Customer account.", response = APIResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity updateTollCustomer(@RequestParam("RCImage") MultipartFile[] rcDoc,
+			@RequestParam("idProof") MultipartFile idProof, @RequestParam("request") String request,
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
+				request, RegistrationType.DEFAULT.value(), clientTransactionId);
+	}
+	
+	@DeleteMapping("{tcid:.*}")
+	@ApiOperation(value = "Toll Customer Delete Account", notes = "API to delete toll customer account.", response = APIResponse.class)
+	public ResponseEntity deleteAccount(
+			@ApiParam(value = "Toll registration Id", required = true) @PathParam("tcid") final String encryptedTCID,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.deleteTollCustomerAccount(httpServletContext.getUser(), encryptedTCID);
+	}
 
 	@GetMapping
 	@ApiOperation(value = "Getting the toll services Customer basis UserId | TagId", notes = "API to get all the Toll Customer basis of UserId | TagId.", response = TollRegistrationResponse.class)
