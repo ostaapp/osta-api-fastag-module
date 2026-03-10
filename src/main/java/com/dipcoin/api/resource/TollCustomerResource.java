@@ -38,12 +38,15 @@ import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.api.model.CustomerDipcoinResponse;
 import com.dipcoin.api.model.Detail;
 import com.dipcoin.api.model.Head;
+import com.dipcoin.api.model.Pagination;
 import com.dipcoin.api.model.ReqVehicleDetailResponse;
 import com.dipcoin.api.model.ReqVehicleDetailsRequest;
 import com.dipcoin.api.model.TollNetcDetailsRequest;
 import com.dipcoin.api.model.TollNetcDetailsResponse;
 import com.dipcoin.api.model.TollNetcSyncTimeResponse;
+import com.dipcoin.api.model.TollRechargeReceipt;
 import com.dipcoin.api.model.TollRechargeRequest;
+import com.dipcoin.api.model.TollRechargeResponse;
 import com.dipcoin.api.model.TollRegistrationRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.model.TollTagFeeAndChargesResponse;
@@ -89,6 +92,7 @@ import com.dipcoin.db.services.DipcoinDBService;
 import com.dipcoin.db.services.FeesAndDepositDBService;
 import com.dipcoin.db.services.MerchantDBService;
 import com.dipcoin.db.services.TollDBService;
+import com.dipcoin.db.services.TollRechargeDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants;
 import com.dipcoin.db.services.commons.DBConstants.BooleanStatus;
@@ -107,6 +111,7 @@ import com.dipcoin.db.services.model.Dipcoin;
 import com.dipcoin.db.services.model.Epc;
 import com.dipcoin.db.services.model.FeesAndDeposit;
 import com.dipcoin.db.services.model.Merchant;
+import com.dipcoin.db.services.model.TollRecharge;
 import com.dipcoin.db.services.model.TollRegistration;
 import com.dipcoin.db.services.model.TollTag;
 import com.dipcoin.db.services.model.User;
@@ -207,6 +212,10 @@ public class TollCustomerResource {
 	private SmsClient smsClient;
 
 	private RLock vehicleNumberLock;
+	
+	@Autowired
+	TollRechargeDBService tollRechargeDBService;
+	
 
 	/*
 	 * Getting tollCustomer Details of basis of USERID OR BANKCODE OR TAGID.
@@ -3528,6 +3537,99 @@ public class TollCustomerResource {
 		response.addHeaderCode(HeaderCode.TOLL_REGISTRATION_INACTIVE);
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 
+	}
+
+	public ResponseEntity getTagRechargeReport(User user, Long startTime, Long endTime, Integer start, Integer count,
+			String vehicleNumber) throws InterruptedException, ExecutionException {
+
+		TollRechargeResponse response = new TollRechargeResponse();
+		if (user != null) {
+			if (!(this.userDBService.isCustomer(user) || this.userDBService.isBankSuperAdmin(user))) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("User is neither a customer nor  a bankSuper admin").format());
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+						.body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+			}
+
+			if (!this.userDBService.isActive(user)) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("User not Active").format());
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+						.body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+			}
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("startTime", startTime)
+					.data("endTime", endTime).data("start", start).data("count", count)
+					.data("Vehicle Number", vehicleNumber).format());
+
+			List<TollRechargeReceipt> tollRechargeReceipts = new LinkedList<>();
+			List<TollRecharge> tollTagRechargeReport = this.tollRechargeDBService
+					.findTollRechargeByUserIdAndVehicleNumber(user.getId(), start, count, startTime, endTime,
+							vehicleNumber);
+
+			if (CollectionUtils.isEmpty(tollTagRechargeReport)) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Data not found").format());
+				return ResponseEntity.status(HttpStatus.OK).body(tollRechargeReceipts);
+			}
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Data found")
+					.data("list Size", tollTagRechargeReport.size()).format());
+
+			for (TollRecharge tollRecharge : tollTagRechargeReport) {
+
+				TollRechargeReceipt tollRechargeReceipt = new TollRechargeReceipt();
+				tollRechargeReceipt.setAvailableAmount(String.valueOf(tollRecharge.getAvailableAmount()));
+				tollRechargeReceipt.setDateAndTime(tollRecharge.getRechargeTime());
+				tollRechargeReceipt.setVehicleNumber(tollRecharge.getVehicleNo());
+				tollRechargeReceipt.setStatus(tollRecharge.getStatus());
+				tollRechargeReceipt.setOstaTransactionRefId(tollRecharge.getDipcoinTransactionRefId());
+				tollRechargeReceipt.setRechargeAmount(tollRecharge.getRechargeAmount());
+				TollTag tag = null;
+
+				// check if tollRecharge.getTagId() is serial number
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Data found")
+						.data("tollRecharge.getTagId()", tollRecharge.getTagId()).format());
+				if (!StringUtils.isEmpty(tollRecharge.getTagId()) && tollRecharge.getTagId().contains("-")) {
+
+					Epc epc = tollDBService.asyncFindEpcBySerialNumber(tollRecharge.getTagId()).get();
+					if (epc != null) {
+						tag = tollDBService.asyncFindTollCustomersByTagId(epc.getRfidTag()).get();
+					} else {
+						tag = this.tollDBService.findTollTagByCustomerAccountIdAndTagIdAndRegistrationNo(
+								tollRecharge.getCustomerAccountId(), tollRecharge.getTagId(),
+								tollRecharge.getVehicleNo());
+					}
+				}
+
+				if (tag != null) {
+
+					if (StringUtils.isEmpty(tag.getAccountNumber())) {
+						CustomerAccount customerAccount = customerDBService
+								.getAccountById(tollRecharge.getCustomerAccountId());
+						tollRechargeReceipt.setAccountNumber(
+								customerAccount != null ? customerAccount.getRawAccountNumber() : null);
+					} else {
+						tollRechargeReceipt.setAccountNumber(tag.getAccountNumber());
+					}
+				}
+
+				tollRechargeReceipts.add(tollRechargeReceipt);
+
+			}
+			// set pagination info
+			Pagination pagination = new Pagination();
+			pagination.setStartRange(startTime);
+			pagination.setEndRange(endTime);
+			pagination.setScanCompleted(tollRechargeReceipts.size() < count);
+			pagination.setTotal(tollRechargeReceipts.size());
+			if (!pagination.getScanCompleted()) {
+				pagination.setStart(start + count);
+			}
+
+			response.setPagination(pagination);
+			response.setTollRechargeResponse(tollRechargeReceipts);
+
+			return ResponseEntity.status(HttpStatus.OK).body(response);
+		}
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+				.body(APIResponse.error(HeaderCode.USER_DOESNT_EXIST));
 	}
 
 }
