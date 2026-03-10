@@ -9,18 +9,24 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXB;
 import javax.xml.bind.JAXBContext;
@@ -68,12 +74,17 @@ import com.dipcoin.api.model.TollNetcDetailsResponse;
 import com.dipcoin.api.model.TollNetcSyncTimeResponse;
 import com.dipcoin.api.model.TollRechargeRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
+import com.dipcoin.api.model.TollReqPayRequest;
 import com.dipcoin.api.model.TollTagCountResponse;
 import com.dipcoin.api.model.TollTagFeeAndChargesResponse;
 import com.dipcoin.api.model.TollTagRequest;
 import com.dipcoin.api.model.TollTagResponse;
 import com.dipcoin.api.model.TollTagUpdateRequest;
 import com.dipcoin.api.model.TollTagUpdateResponse;
+import com.dipcoin.api.model.TollTagWihVinDetail;
+import com.dipcoin.api.model.TollTagsWihVinDetail;
+import com.dipcoin.api.model.TollTransactionsReport;
+import com.dipcoin.api.model.TollTransactionsReportResponse;
 import com.dipcoin.api.model.TopUpDetails;
 import com.dipcoin.api.model.Txn;
 import com.dipcoin.api.model.Vehicle;
@@ -92,6 +103,11 @@ import com.dipcoin.db.services.TagNPCIApprovalStatusDBService;
 import com.dipcoin.db.services.TollDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants;
+import com.dipcoin.db.services.commons.DBConstants.BankTransactionType;
+import com.dipcoin.db.services.commons.DBConstants.BankTransactionsStatus;
+import com.dipcoin.db.services.commons.DBConstants.BooleanStatus;
+import com.dipcoin.db.services.commons.DBConstants.DipcoinTransactionType;
+import com.dipcoin.db.services.commons.DBConstants.DipcoinTransactionsStatus;
 import com.dipcoin.db.services.commons.DBConstants.EpcVisibilityStatus;
 import com.dipcoin.db.services.commons.DBConstants.MerchantBusinessSegment;
 import com.dipcoin.db.services.commons.DBConstants.TagDeliveryType;
@@ -102,8 +118,10 @@ import com.dipcoin.db.services.commons.DBConstants.VinVrn;
 import com.dipcoin.db.services.commons.Utils;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.BankBranchDetails;
+import com.dipcoin.db.services.model.BankTransaction;
 import com.dipcoin.db.services.model.CustomerAccount;
 import com.dipcoin.db.services.model.Dipcoin;
+import com.dipcoin.db.services.model.DipcoinTransaction;
 import com.dipcoin.db.services.model.Epc;
 import com.dipcoin.db.services.model.FeesAndDeposit;
 import com.dipcoin.db.services.model.Merchant;
@@ -117,6 +135,7 @@ import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
 import com.dipcoin.partner.toll.commons.TollErrorCodes;
 import com.dipcoin.partner.toll.commons.TollHttpsServices;
 import com.dipcoin.partner.toll.commons.TollSignatureGenerationServices;
+import com.dipcoin.partner.toll.commons.VehicleCategories;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component("tollServiceBankResource")
@@ -207,8 +226,8 @@ public class TollBankResource {
 	@Autowired
 	private TagNPCIApprovalStatusDBService tagNPCIApprovalStatusDBService;
 	
-	
-	  
+	@Autowired
+	private TollCustomerResource tollServicesResource;
 			
 	public BrontooResource getBrontooResource() {
 	    return brontooResource;
@@ -2071,9 +2090,792 @@ public ResponseEntity tollRechargeCreateOsta(final User user, final TollRecharge
 }
 
 
+// Bank Vehicle Verification Status
+public ResponseEntity bankVehicleVerification(User user, String vehicleRegistrationNo,
+    String tagId, String tid, String serialNumber) throws APIException, Exception {
+
+  if (!(this.userDBService.isBankSuperAdmin(user) || this.userDBService.isBankAdmin(user)
+      || this.userDBService.isBankTransactor(user) || this.userDBService.isBankViewer(user))) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+        .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+  }
+
+  if (!this.userDBService.isActive(user)) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+        .body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+  }
+
+  if (StringUtils.isBlank(vehicleRegistrationNo)) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(APIResponse.error(HeaderCode.MISSING_INVALID_INFO));
+  }
+
+
+  if (!tollProperties.isConnectNpci()) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(APIResponse.error(HeaderCode.TOLL_API_NOT_ALLOWED));
+  }
+
+
+
+  Bank bank = bankDBService.getBank(user.getBankMerchantId());
+
+  if (bank == null) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(APIResponse.error(HeaderCode.BANK_DOESNT_EXISTS));
+  }
+
+
+  List<TollTag> tollTags =
+      tollDBService.findTollTagByRegistrationNoAndBankId(vehicleRegistrationNo, bank.getId());
+
+
+  if (CollectionUtils.isEmpty(tollTags)) {
+    return ResponseEntity.status(HttpStatus.NO_CONTENT)
+        .body(APIResponse.error(HeaderCode.TOLL_VEHICLE_REG_NO_NOT_ASSOCIATED_WITH_BANK));
+  }
+
+	return brontooResource.getVehicleInfo(user, vehicleRegistrationNo, tagId, tid, RegistrationType.DEFAULT.value(),
+			bank.getReferenceId() /*,true*/);
+
+ // return brontooResource.getVehicleInfo(user, vehicleRegistrationNo, tagId, tid, null, vin, vrn, last5digitofengineno, RegistrationType.DEFAULT.value(), bank.getReferenceId());
+}
+
+
+
+public ResponseEntity<?> fetchTollTagsWithVin(User user, String branchCode , String clientTransactionId, 
+		Long startTime, Long endTime, Integer start, Integer count , String serialNumber) {
+
+  TollTagsWihVinDetail response = new TollTagsWihVinDetail();
+
+  if (clientTransactionId == null) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(APIResponse.error(HeaderCode.MISSING_CLIENTTRANSACTIONID));
+  }
+
+  if (!this.userDBService.bankRepresentative(user)) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+        .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+  }
+
+  if (!this.userDBService.isActive(user)) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+  }
+  
+	/* to solve prod issue
+	 * BankBranchDetails bankBranchDetail =
+	 * this.bankBranchDetailsService.findBankBranchDetailsByBranchCode(branchCode);
+	 * if (bankBranchDetail == null) { return
+	 * ResponseEntity.status(HttpStatus.BAD_REQUEST)
+	 * .body(APIResponse.error(HeaderCode.INVALID_BRANCH_CODE)); }
+	 */
+
+  List<TollTagWihVinDetail> tollTagWihVinDetails = new ArrayList<>();
+  
+	List<TollTag> tollTags = null;
+
+
+	if (StringUtils.isNotEmpty(serialNumber) && serialNumber != null) {
+
+          LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+              .message("in serialNumber")
+              .data("serialNumber", serialNumber).format());
+
+          tollTags = this.tollDBService
+              .findByBankIdAndVinVrnFlagAndStatusAndApprovedDateTimeBetweenAndSerialNumber(
+                  httpServletContext.getBank().getId(), VinVrn.VIN_CHACIS.value(),
+                  String.valueOf(TollTagApprovalStatus.ACTIVE.value()), String.valueOf(startTime),
+                  String.valueOf(endTime), start, count, serialNumber);
+
+        } else if(StringUtils.isNotEmpty(branchCode) && branchCode != null){
+
+          LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+              .message("in branchCode")
+              .data("branchCode", branchCode).format());
+
+          tollTags = this.tollDBService
+              .findByBankIdAndVinVrnFlagAndStatusAndApprovedDateTimeBetweenAndTollRegistrationDob(
+                  start, count, httpServletContext.getBank().getId(), VinVrn.VIN_CHACIS.value(),
+                  TollTagApprovalStatus.ACTIVE.value(), String.valueOf(startTime),
+                  String.valueOf(endTime), branchCode);
+        }
+
+  if (CollectionUtils.isEmpty(tollTags)) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(APIResponse.error(HeaderCode.TOLL_TAGS_NOT_FOUND));
+  }
+
+  for (TollTag tollTag : tollTags) {
+
+    TollRegistration tollRegistration = tollTag.getTollRegistration();
+
+    TollTagWihVinDetail tollTagWihVinDetail = new TollTagWihVinDetail();
+    tollTagWihVinDetail.setFirstName(tollRegistration.getFirstName());
+    tollTagWihVinDetail.setLastName(tollRegistration.getLastName());
+    tollTagWihVinDetail.setMobileNo(tollRegistration.getMobileNo());
+    tollTagWihVinDetail.setSerialNumber(tollTag.getSerialNumber());
+    tollTagWihVinDetail.setVin(tollTag.getVinNumber());
+
+    // if documents not uploaded
+    if (StringUtils.isEmpty(tollTag.getUpdatedDocs())) {
+      tollTagWihVinDetail.setIsDocumentUploaded(BooleanStatus.NO.value());
+      tollTagWihVinDetail.setIsDocumentVerified(BooleanStatus.NO.value());
+      tollTagWihVinDetail.setVrn("");
+      tollTagWihVinDetail.setRcImage("");
+      tollTagWihVinDetail.setVehicleImage("");
+    }
+
+    else {
+      tollTagWihVinDetail.setIsDocumentUploaded(BooleanStatus.YES.value());
+      tollTagWihVinDetail.setVrn(tollTag.getVinToVrn());
+
+      // updatedDocs = "image1path,image2path" example
+      // image1path --> rc image , image2path --> vehicle image
+      String[] uploadedDocuments = tollTag.getUpdatedDocs().trim().split(",");
+
+      if (ArrayUtils.isNotEmpty(uploadedDocuments)) {
+        tollTagWihVinDetail.setRcImage(uploadedDocuments[0].trim());
+        tollTagWihVinDetail.setVehicleImage(uploadedDocuments[1].trim());
+
+		/*
+		 * if (tollTag.getVinDocVerify() == VinDocVerify.VERIFIED.value()) {
+		 * tollTagWihVinDetail.setIsDocumentVerified(BooleanStatus.YES.value()); }
+		 * 
+		 * else { tollTagWihVinDetail.setIsDocumentVerified(BooleanStatus.NO.value()); }
+		 */
+        
+        tollTagWihVinDetail.setIsDocumentVerified(tollTag.getVinDocVerify());
+      }
+    }
+
+    // vinVrnFlag --> if flag indicates vin that means vrn is not updated to NETC
+    // this will always be NO here
+    // Note : vinVrnFlag --> if flag indicates vrn that means TollTag would not get fetched here
+    // in TollTagWihVinDetail
+    if(tollTag.getRegistrationNo().equals(tollTag.getVinToVrn())){
+    	
+    	tollTagWihVinDetail.setIsVrnUpdatedWithNETC(BooleanStatus.YES.value());
+    }
+    else {
+    	tollTagWihVinDetail.setIsVrnUpdatedWithNETC(BooleanStatus.NO.value());
+
+    }
+
+    LocalDate todaysDate = LocalDate.now();
+    LocalDate tagApprovalDate =
+        Instant.ofEpochMilli(Long.valueOf(tollTag.getApprovedDateTime()))
+            .atZone(ZoneId.systemDefault()).toLocalDate();
+    long diffInDays = ChronoUnit.DAYS.between(tagApprovalDate, todaysDate);
+
+    tollTagWihVinDetail.setNoOfDaysFromDateOfTagApproval(diffInDays);
+
+    tollTagWihVinDetails.add(tollTagWihVinDetail);
+
+  }
+
+  // setting pagination info
+  Pagination pagination = new Pagination();
+  pagination.setStartRange(startTime);
+  pagination.setEndRange(endTime);
+  pagination.setScanCompleted(tollTags.size() < count);
+  pagination.setTotal(tollTags.size());
+  if (!pagination.getScanCompleted()) {
+    pagination.setStart(start + count);
+  }
+
+  response.setTollTagWihVinDetails(tollTagWihVinDetails);
+  response.setPagination(pagination);
+
+  return ResponseEntity.status(HttpStatus.OK).body(response);
+}
+
+
+
+public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startTime, Long endTime, Integer start,
+		Integer count, String vehicleNumber) throws InterruptedException, ExecutionException {
+
+	if (this.userDBService.isBankAdmin(bankUser)) {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+	}
+
+	if (!this.userDBService.bankRepresentative(bankUser)) {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+	}
+
+	if (!this.bankDBService.isActive(bank)) {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+	}
+
+	return tollServicesResource.getTagRechargeReport(httpServletContext.getUser(), startTime, endTime, start, count,
+			vehicleNumber);
+}
+
+
+
+/*
+ * Get Bank Transactions for Toll
+ */
+public ResponseEntity getTollTransactions(User user, Bank bank, Long startTime, Long endTime, Integer start,
+		Integer count, List<Integer> statuses, List<String> vehicleNumber, String accountNumber) throws Exception {
+
+	if (user == null && bank == null) {
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+				.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+	}
+
+	if (!(this.userDBService.bankRepresentative(user) || this.userDBService.brontooRepresentative(user)
+			|| this.userDBService.isCustomer(user))) {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+	}
+
+	LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("startTime", startTime)
+			.data("endTime", endTime).data("start", start).data("count", count).data("status", statuses)
+			.data("vehicleNumber", vehicleNumber).format());
+
+	String startDateValue = String.valueOf(formatter.format(startTime));
+	String endDateValue = String.valueOf(formatter.format(endTime));
+	List<TollTransactionsReport> reports = new ArrayList<>();
+	Map<String, Object> vehicleInfo = new HashMap<>();
+
+	TollTransactionsReportResponse tollTransactionsReportResponse = new TollTransactionsReportResponse();
+	if (CollectionUtils.isNotEmpty(vehicleNumber)) {
+
+		List<TollTag> tollTags = tollDBService.findTollTagByRegistrationNo(vehicleNumber);
+
+		if (CollectionUtils.isEmpty(tollTags)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch toll tag")
+					.data("Vehicle Number", vehicleNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.VEHICLE_REG_NO_NOT_IN_DB));
+		}
+
+		TollTag tollTag = tollTags.get(tollTags.size() - 1);
+
+		List<String> orderIds = new ArrayList<>();
+		for (TollTag tolltag : tollTags) {
+			if (StringUtils.isNotBlank(tolltag.getTagId())) {
+				orderIds.add(tolltag.getTagId());
+			} else if (Integer.parseInt(tolltag.getStatus()) == TollTagApprovalStatus.ACTIVE.value()) {
+				tollTag = tolltag;
+			}
+
+		}
+
+		if (StringUtils.isEmpty(tollTag.getSerialNumber())) {
+			Epc epc = tollDBService.findEpcByTagId(tollTag.getTagId());
+			if (epc != null) {
+				tollTag.setSerialNumber(epc.getSerialNumber());
+				tollTag = tollDBService.updateTollTag(tollTag);
+			}
+		}
+
+		Dipcoin dCoin = dipcoinDBService.findDipcoin(tollTag.getCustomerAccountId(),
+				DBConstants.DipcoinStatus.ACTIVE.value(), DBConstants.DipcoinUsageType.TOLL.value());
+
+		vehicleInfo.put("amount", dCoin != null ? dCoin.getAmount() : BigDecimal.ZERO);
+		vehicleInfo.put("serialNumber", tollTag.getSerialNumber());
+		vehicleInfo.put("regNumber", tollTag.getRegistrationNo());
+		vehicleInfo.put("classId", tollTag.getCategory().replaceAll("VC", StringUtils.EMPTY));
+		vehicleInfo.put("bankName", bank.getName());
+		vehicleInfo.put("bankImage", bankAPIServices.getBankProperties(bank.getReferenceId()).getBankLogo());
+		for (VehicleCategories VehicleCategory : VehicleCategories.values()) {
+
+			if (VehicleCategory.getId() == tollTag.getCategoryId()) {
+				vehicleInfo.put("class", VehicleCategory.getVehicleInfo().replaceAll("\\s", StringUtils.EMPTY));
+			}
+
+		}
+		List<Integer> customerAccountIds = customerDBService.getCustomerAccountIdsByBankID(bank.getId());
+		
+		if(CollectionUtils.isEmpty(customerAccountIds)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch customerAccounts")
+					.format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+		
+		List<DipcoinTransaction> dTxns = dipcoinDBService.getFatagTxnRecon(orderIds, startTime, endTime,
+				Arrays.asList(DipcoinTransactionType.COMPLETELY_USED.value(),
+						DipcoinTransactionType.PARTIALLY_USED.value(),
+						DipcoinTransactionType.DEEMED_ACCEPTED.value(),
+						DipcoinTransactionType.NON_FIN.value()),
+				customerAccountIds, DipcoinTransactionsStatus.SUCCESS.value(),
+				TransactionSource.TOLL.value(), start, count);
+
+		if (CollectionUtils.isEmpty(dTxns)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch toll txn")
+					.data("Vehicle Number", vehicleNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+
+		}
+
+		List<Integer> dipcoinIds = new ArrayList<>();
+		Map<String, DipcoinTransaction> dtxLookUp = new LinkedHashMap<>();
+		Map<String, BankTransaction> btxLookUp = new LinkedHashMap<>();
+		Map<String, Dipcoin> dCoinLookUp = new LinkedHashMap<>();
+
+		for (DipcoinTransaction dtx : dTxns) {
+			if (dtx.getDipcoinId() != NumberUtils.INTEGER_ZERO) {
+				dipcoinIds.add(dtx.getDipcoinId());
+				dtxLookUp.put(String.valueOf(dtx.getDipcoinId()), dtx);
+			} else {
+				dtxLookUp.put(String.valueOf(dtx.getDipcoinTransactionRefId()), dtx);
+			}
+
+		}
+
+		List<Dipcoin> dCoins = dipcoinDBService.getDipcoins(dipcoinIds, null, null);
+
+		if (CollectionUtils.isEmpty(dCoins)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch dCoins")
+					.data("Vehicle Number", vehicleNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+
+		for (Dipcoin dipcoin : dCoins) {
+			dCoinLookUp.put(String.valueOf(dipcoin.getId()), dipcoin);
+		}
+
+		List<BankTransaction> bTxs = bankDBService.getTransactionsByDipcoinIdsAndTypes(dipcoinIds,
+				Arrays.asList(BankTransactionType.DEBIT_TO_ACCOUNT.value()),
+				BankTransactionsStatus.SUCCESS.value());
+
+		if (CollectionUtils.isNotEmpty(bTxs)) {
+			for (BankTransaction btx : bTxs) {
+				btxLookUp.put(String.valueOf(btx.getDipcoinId()), btx);
+			}
+		}
+
+		// Populate the response
+
+		reports = populateDipcoinTransactionInfo(tollTag, dtxLookUp, btxLookUp, dCoinLookUp, vehicleNumber,
+				startDateValue, endDateValue);
+
+		dtxLookUp.clear();
+		btxLookUp.clear();
+		dCoinLookUp.clear();
+	} 
+	else if (!StringUtils.isEmpty(accountNumber)) {
+
+		List<TollTag> tollTags = tollDBService.findTollTagsByAccountNumber(accountNumber);
+
+		if (CollectionUtils.isEmpty(tollTags)) {
+
+			List<CustomerAccount> customerAccounts = this.customerDBService
+					.findCustomerAccountByBankUID(accountNumber);
+			if (!CollectionUtils.isEmpty(customerAccounts)) {
+				List<Integer> customerAccountIds = new ArrayList<>();
+				for (CustomerAccount customerAccount : customerAccounts) {
+					customerAccountIds.add(customerAccount.getId());
+				}
+				tollTags = this.tollDBService.findTollTagsByCustomerAccountId(customerAccountIds);
+				if (CollectionUtils.isEmpty(tollTags)) {
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("Failed fetch toll tag").data("Account Number", accountNumber).format());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.body(APIResponse.error(HeaderCode.ACCOUNT_NOT_PRESENT));
+				}
+			}
+
+		}
+
+		List<String> orderIds = new ArrayList<>();
+		
+			 
+		for (TollTag tollTag : tollTags) {
+			if (StringUtils.isNotBlank(tollTag.getTagId())) {
+				orderIds.add(tollTag.getTagId());
+			} else if (Integer.parseInt(tollTag.getStatus()) == TollTagApprovalStatus.ACTIVE.value()) {
+				tollTag = tollTag;
+			}
+
+		
+
+		if (StringUtils.isEmpty(tollTag.getSerialNumber())) {
+			Epc epc = tollDBService.findEpcByTagId(tollTag.getTagId());
+			if (epc != null) {
+				tollTag.setSerialNumber(epc.getSerialNumber());
+				tollTag = tollDBService.updateTollTag(tollTag);
+			}
+		}
+		Dipcoin dCoin = dipcoinDBService.findDipcoin(tollTag.getCustomerAccountId(),
+				DBConstants.DipcoinStatus.ACTIVE.value(), DBConstants.DipcoinUsageType.TOLL.value());
+
+		vehicleInfo.put("amount", dCoin != null ? dCoin.getAmount() : BigDecimal.ZERO);
+		vehicleInfo.put("serialNumber", tollTag.getSerialNumber());
+		vehicleInfo.put("regNumber", tollTag.getRegistrationNo());
+		vehicleInfo.put("classId", tollTag.getCategory().replaceAll("VC", StringUtils.EMPTY));
+		vehicleInfo.put("bankName", bank.getName());
+		vehicleInfo.put("bankImage", bankAPIServices.getBankProperties(bank.getReferenceId()).getBankLogo());
+		for (VehicleCategories VehicleCategory : VehicleCategories.values()) {
+
+			if (VehicleCategory.getId() == tollTag.getCategoryId()) {
+				vehicleInfo.put("class", VehicleCategory.getVehicleInfo().replaceAll("\\s", StringUtils.EMPTY));
+			}
+
+		}
+		List<Integer> customerAccountIds = customerDBService.getCustomerAccountIdsByBankID(bank.getId());
+		
+		if(CollectionUtils.isEmpty(customerAccountIds)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch customerAccounts")
+					.format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+		
+		List<DipcoinTransaction> dTxns = dipcoinDBService.getFatagTxnRecon(orderIds, startTime, endTime,
+				Arrays.asList(DipcoinTransactionType.COMPLETELY_USED.value(),
+						DipcoinTransactionType.PARTIALLY_USED.value(),
+						DipcoinTransactionType.DEEMED_ACCEPTED.value(),
+						DipcoinTransactionType.NON_FIN.value()),
+				customerAccountIds, DipcoinTransactionsStatus.SUCCESS.value(),
+				TransactionSource.TOLL.value(), start, count);
+
+		if (CollectionUtils.isEmpty(dTxns)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch toll txn")
+					.data("Account Number", accountNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+
+		}
+
+		List<Integer> dipcoinIds = new ArrayList<>();
+		Map<String, DipcoinTransaction> dtxLookUp = new LinkedHashMap<>();
+		Map<String, BankTransaction> btxLookUp = new LinkedHashMap<>();
+		Map<String, Dipcoin> dCoinLookUp = new LinkedHashMap<>();
+
+		for (DipcoinTransaction dtx : dTxns) {
+			if (dtx.getDipcoinId() != NumberUtils.INTEGER_ZERO) {
+				dipcoinIds.add(dtx.getDipcoinId());
+				dtxLookUp.put(String.valueOf(dtx.getDipcoinId()), dtx);
+			} else {
+				dtxLookUp.put(String.valueOf(dtx.getDipcoinTransactionRefId()), dtx);
+			}
+
+		}
+
+		List<Dipcoin> dCoins = dipcoinDBService.getDipcoins(dipcoinIds, null, null);
+
+		if (CollectionUtils.isEmpty(dCoins)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch dCoins")
+					.data("Account Number", accountNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+
+		for (Dipcoin dipcoin : dCoins) {
+			dCoinLookUp.put(String.valueOf(dipcoin.getId()), dipcoin);
+		}
+
+		List<BankTransaction> bTxs = bankDBService.getTransactionsByDipcoinIdsAndTypes(dipcoinIds,
+				Arrays.asList(BankTransactionType.DEBIT_TO_ACCOUNT.value()),
+				BankTransactionsStatus.SUCCESS.value());
+
+		if (CollectionUtils.isNotEmpty(bTxs)) {
+			for (BankTransaction btx : bTxs) {
+				btxLookUp.put(String.valueOf(btx.getDipcoinId()), btx);
+			}
+		}
+		// Populate the response
+		 List<TollTransactionsReport> tagReports = populateDipcoinTransactionInfo(tollTag, dtxLookUp, btxLookUp, dCoinLookUp, Arrays.asList(accountNumber), startDateValue, endDateValue);
+            reports.addAll(tagReports);
+            
+		 
+		dtxLookUp.clear();
+		btxLookUp.clear();
+		dCoinLookUp.clear();
+
+		 }
+		// set pagination info
+		Pagination pagination = new Pagination();
+		pagination.setStartRange(startTime);
+		pagination.setEndRange(endTime);
+		pagination.setScanCompleted(reports.size() < count);
+		pagination.setTotal(reports.size());
+		if (!pagination.getScanCompleted()) {
+			pagination.setStart(start + count);
+		}
+
+		tollTransactionsReportResponse.setVehicleInfo(vehicleInfo);
+		tollTransactionsReportResponse.setTransactions(reports);
+		tollTransactionsReportResponse.setPagination(pagination);
+
+		return ResponseEntity.ok(tollTransactionsReportResponse);
+	}
+	else {
+
+		// Looping through each TollTag entry and fetching the dtx and btx of it
+		List<Integer> customerAccountIds = customerDBService.getCustomerAccountIdsByBankID(bank.getId());
+		
+		if(CollectionUtils.isEmpty(customerAccountIds)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch customerAccounts")
+					.format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+		
+		List<DipcoinTransaction> dTxns = dipcoinDBService.getFatagTxnRecon(null, startTime, endTime,
+				Arrays.asList(DipcoinTransactionType.COMPLETELY_USED.value(),
+						DipcoinTransactionType.PARTIALLY_USED.value(),
+						DipcoinTransactionType.DEEMED_ACCEPTED.value(),
+						DipcoinTransactionType.NON_FIN.value()),
+				customerAccountIds, DipcoinTransactionsStatus.SUCCESS.value(),
+				TransactionSource.TOLL.value(), start, count);
+
+		if (CollectionUtils.isEmpty(dTxns)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch toll txn")
+					.format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+
+		List<Integer> dipcoinIds = new ArrayList<>();
+		Map<String, DipcoinTransaction> dtxLookUp = new LinkedHashMap<>();
+		Map<String, BankTransaction> btxLookUp = new LinkedHashMap<>();
+		Map<String, Dipcoin> dCoinLookUp = new LinkedHashMap<>();
+
+		for (DipcoinTransaction dtx : dTxns) {
+			if (dtx.getDipcoinId() != NumberUtils.INTEGER_ZERO) {
+				dipcoinIds.add(dtx.getDipcoinId());
+				dtxLookUp.put(String.valueOf(dtx.getDipcoinId()), dtx);
+			} else {
+				dtxLookUp.put(String.valueOf(dtx.getDipcoinTransactionRefId()), dtx);
+			}
+
+		}
+
+		List<Dipcoin> dCoins = dipcoinDBService.getDipcoins(dipcoinIds, null, null);
+
+		if (CollectionUtils.isEmpty(dCoins)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch dCoins")
+					.data("Vehicle Number", vehicleNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+
+		for (Dipcoin dipcoin : dCoins) {
+			dCoinLookUp.put(String.valueOf(dipcoin.getId()), dipcoin);
+		}
+
+		if (CollectionUtils.isEmpty(dCoins)) {
+			LOG.error(
+					LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch dCoins").format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
+		}
+
+		List<BankTransaction> bTxs = bankDBService.getTransactionsByDipcoinIdsAndTypes(dipcoinIds,
+				Arrays.asList(BankTransactionType.DEBIT_TO_ACCOUNT.value()),
+				BankTransactionsStatus.SUCCESS.value());
+
+		if (CollectionUtils.isNotEmpty(bTxs)) {
+			for (BankTransaction btx : bTxs) {
+				btxLookUp.put(String.valueOf(btx.getDipcoinId()), btx);
+			}
+		}
+
+		// Populate the response
+
+		reports = populateDipcoinTransactionInfo(null, dtxLookUp, btxLookUp, dCoinLookUp, null, startDateValue,
+				endDateValue);
+
+		dtxLookUp.clear();
+		btxLookUp.clear();
+		dCoinLookUp.clear();
+	}
+
+	// set pagination info
+	Pagination pagination = new Pagination();
+	pagination.setStartRange(startTime);
+	pagination.setEndRange(endTime);
+	pagination.setScanCompleted(reports.size() < count);
+	pagination.setTotal(reports.size());
+	if (!pagination.getScanCompleted()) {
+		pagination.setStart(start + count);
+	}
+
+	tollTransactionsReportResponse.setVehicleInfo(vehicleInfo);
+	tollTransactionsReportResponse.setTransactions(reports);
+	tollTransactionsReportResponse.setPagination(pagination);
+
+	return ResponseEntity.ok(tollTransactionsReportResponse);
+
+}
+
+
+
+
+
+
+
+
+
+
+
 
 // ###########################################################################################################################
 	
+
+//get Dipcoin transaction
+	@SuppressWarnings("unlikely-arg-type")
+	public List<TollTransactionsReport> populateDipcoinTransactionInfo(final TollTag tag,
+			Map<String, DipcoinTransaction> dtxLookUp, Map<String, BankTransaction> btxLookUp,
+			Map<String, Dipcoin> dCoinLookUp, final List<String> vehicleNumber, final String startDateValue,
+			final String endDateValue) {
+		List<TollTransactionsReport> transactionsResponse = new ArrayList<>();
+		for (Map.Entry<String, DipcoinTransaction> entry : dtxLookUp.entrySet()) {
+			TollTransactionsReport response = new TollTransactionsReport();
+
+			try {
+				try {
+					response.setDipcoinStatus(dCoinLookUp.get(entry.getKey()).getStatus());
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("dipcoin status set exception for dtx" + entry.getKey()).format());
+				}
+
+				TollReqPayRequest tollReqPayRequest = null;
+				try {
+					tollReqPayRequest = objectMapper.readValue(entry.getValue().getPartnerRawRequest(),
+							TollReqPayRequest.class);
+				} catch (Exception e) {
+
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("Reqpay json Conversion errror").format());
+				}
+
+				String[] fastagTxnDateTime = tollReqPayRequest != null
+						? tollReqPayRequest.getMerchant().getReaderVerificationResult().getTsRead().split("T")
+						: new String[] { StringUtils.EMPTY, StringUtils.EMPTY };
+
+				try {
+					response.setTransactionDate(StringUtils.isNotEmpty(fastagTxnDateTime[0]) ? fastagTxnDateTime[0]
+							: txnAndReconDateformat.format(new Date(Long.parseLong(entry.getValue().getRequestTime())))
+									.split(StringUtils.SPACE)[0]);
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("exception while converting epoch to date")
+							.data("TxnRequestTime", tollReqPayRequest.getMerchant().getReaderVerificationResult()
+									.getTsRead().split("T"))
+							.format());
+					response.setTransactionDate(StringUtils.EMPTY);
+				}
+
+				try {
+					response.setTransactionTime(StringUtils.isNotEmpty(fastagTxnDateTime[1]) ? fastagTxnDateTime[1]
+							: txnAndReconDateformat.format(new Date(Long.parseLong(entry.getValue().getRequestTime())))
+									.split(StringUtils.SPACE)[1]);
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("exception while converting epoch to date")
+							.data("TxnRequestTime", tollReqPayRequest.getMerchant().getReaderVerificationResult()
+									.getTsRead().split("T"))
+							.format());
+					response.setTransactionTime(StringUtils.EMPTY);
+				}
+
+				try {
+					response.setTransactionId(
+							entry.getValue().getPartnerTransactionReferenceId().contains("-")
+									? entry.getValue().getPartnerTransactionReferenceId().split("-")[0]
+											+ StringUtils.SPACE + "Debit Adjustment"
+									: entry.getValue().getPartnerTransactionReferenceId());
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("exception while inserting in pdf")
+							.data("TxnId", entry.getValue().getPartnerTransactionReferenceId()).format());
+					response.setTransactionId(StringUtils.EMPTY);
+				}
+
+				try {
+					response.setOstaTransactionReferenceId(entry.getValue().getDipcoinTransactionRefId());
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("exception while inserting in pdf")
+							.data("TxnId", entry.getValue().getPartnerTransactionReferenceId()).format());
+					response.setOstaTransactionReferenceId(StringUtils.EMPTY);
+				}
+
+				// Splitting DipcoinTransactionUsageDetails
+				try {
+
+					if (tollReqPayRequest != null) {
+						response.setTollPlazaName(tollReqPayRequest.getMerchant().getName());
+
+					} else {
+						String[] usageDetails = entry.getValue().getUsageDetails().split(",");
+
+						if (usageDetails.length >= 2) {
+							response.setTollPlazaName(usageDetails[usageDetails.length - 2].trim());
+						} else {
+							response.setTollPlazaName(entry.getValue().getUsageDetails());
+						}
+					}
+
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("exception while adding plaza name")
+							.data("usagedetails", entry.getValue().getUsageDetails()).format());
+					response.setTollPlazaName(StringUtils.EMPTY);
+				}
+
+				try {
+					response.setTollAmount(String.valueOf(entry.getValue().getAmount()));
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("exception").format());
+					response.setTollAmount(String.valueOf(BigDecimal.ZERO));
+				}
+
+				try {
+
+					if (tollReqPayRequest != null) {
+						response.setLaneDirection(tollReqPayRequest.getMerchant().getLane().getDirection());
+					} else {
+						response.setLaneDirection(entry.getValue().getUsageDetails()
+								.substring(entry.getValue().getUsageDetails().trim().length() - 1));
+					}
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("exception while adding lane direction")
+							.data("usagedetails", entry.getValue().getUsageDetails()).format());
+					response.setLaneDirection(StringUtils.EMPTY);
+				}
+
+				try {
+					response.setReconDate(btxLookUp.get(entry.getKey()) != null ? txnAndReconDateformat
+							.format(new Date(Long.parseLong(btxLookUp.get(entry.getKey()).getRequestTime())))
+							.split(StringUtils.SPACE)[0] : StringUtils.EMPTY);
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("exception")
+							.data("bTx.getRequestTime", btxLookUp.get(entry.getKey()).getRequestTime()).format());
+					response.setReconDate(StringUtils.EMPTY);
+				}
+
+				try {
+					response.setReconTime(btxLookUp.get(entry.getKey()) != null ? txnAndReconDateformat
+							.format(new Date(Long.parseLong(btxLookUp.get(entry.getKey()).getRequestTime())))
+							.split(StringUtils.SPACE)[1] : StringUtils.EMPTY);
+				} catch (Exception e) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("exception")
+							.data("bTx.getRequestTime", btxLookUp.get(entry.getKey()).getRequestTime()).format());
+					response.setReconTime(StringUtils.EMPTY);
+				}
+
+			} catch (Exception e) {
+				LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("exception caught").format(),
+						e);
+			}
+			transactionsResponse.add(response);
+		}
+		return transactionsResponse;
+	}
+
+
+
+
 	
 	public ResponseEntity filterTollTags(final User user,Bank bank,Integer bankId, final String phone, final String branchCode,
 			final String status, Long startTime, Long endTime, Integer start, Integer count)throws Exception, APIException 
