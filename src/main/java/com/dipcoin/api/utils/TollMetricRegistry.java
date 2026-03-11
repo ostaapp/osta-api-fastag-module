@@ -34,9 +34,11 @@ public class TollMetricRegistry {
 				.register(meterRegistry);
 	}
 
-	public Counter numberOfTagsApplied() {
-		return Counter.builder("number_of_tags_applied").description("Number of Tags applied.").register(meterRegistry);
-	}
+	  public Counter numberOfTagsApplied() {
+		    return Counter.builder("number_of_tags_applied")
+		        .description("Number of Tags applied.")
+		        .register(meterRegistry);
+		  }
 
 	public Counter numberOfTagsAppliedByBank() {
 		return Counter.builder("number_of_tags_applied_by_Bank").description("Number of Tags applied by bank.")
@@ -81,4 +83,5 @@ public class TollMetricRegistry {
 		LOG.info("Cleaning up " + this.getClass().getSimpleName() + " ...");
 	}
 
+	
 }

@@ -38,74 +38,68 @@ import com.dipcoin.db.services.model.UserDevice;
  *
  */
 @Component("merchantResource")
-@Transactional(rollbackFor = {Exception.class, APIException.class},
-    propagation = Propagation.REQUIRES_NEW)
+@Transactional(rollbackFor = { Exception.class, APIException.class }, propagation = Propagation.REQUIRES_NEW)
 public class MerchantResource extends PartnerResource {
 
-  private static final Logger LOG = LogManager.getLogger(MerchantResource.class);
-  public static final DateFormat formatter = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss aa");
-  
-  @Autowired
-  private UserDBService userDBService;
-  
-  @Autowired
-  private CryptoUtil cryptoUtil;
+	private static final Logger LOG = LogManager.getLogger(MerchantResource.class);
+	public static final DateFormat formatter = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss aa");
 
-  @Autowired
-  TollTagDao tollTagDao;
-  
-  @Autowired
-  @Lazy
-  private HttpServletContext httpServletContext;
+	@Autowired
+	private UserDBService userDBService;
 
+	@Autowired
+	private CryptoUtil cryptoUtil;
 
-	
-	  public ResponseEntity getMerchantDipcoinRequestQRCode(final User user, final Merchant merchant,
-		      final MerchantDipcoinRequest createReq, Integer width, Integer height, String image)
-		      throws Exception {
+	@Autowired
+	TollTagDao tollTagDao;
 
-		    ResponseEntity response = getMerchantDipcoinRequest(user, merchant, createReq);
-		    if (response.getStatusCode() != HttpStatus.OK) {
-		      return response;
-		    }
+	@Autowired
+	@Lazy
+	private HttpServletContext httpServletContext;
 
-		    final byte[] data = QRCodeUtils.generateQRCode(response.getBody(), width, height,
-		        "merchant_osta_request", image);
+	public ResponseEntity getMerchantDipcoinRequestQRCode(final User user, final Merchant merchant,
+			final MerchantDipcoinRequest createReq, Integer width, Integer height, String image) throws Exception {
 
-		    return APIUtils.generateMultiPartResponse(data, "merchant_osta_request." + image);
+		ResponseEntity response = getMerchantDipcoinRequest(user, merchant, createReq);
+		if (response.getStatusCode() != HttpStatus.OK) {
+			return response;
+		}
 
-		  }
-	  
-	  public ResponseEntity getMerchantDipcoinRequest(final User user, final Merchant merchant,
-		      final MerchantDipcoinRequest createReq) throws Exception {
+		final byte[] data = QRCodeUtils.generateQRCode(response.getBody(), width, height, "merchant_osta_request",
+				image);
 
-		    if (!this.userDBService.merchantRepresentative(user) || !this.userDBService.isActive(user)) {
-		      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-		          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
-		    }
-		    if (createReq == null) {
-		      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-		          .body(APIResponse.error(HeaderCode.BAD_REQUEST));
-		    }
+		return APIUtils.generateMultiPartResponse(data, "merchant_osta_request." + image);
 
-		    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching User Device")
-		        .data("user", user.getId()).format());
-		    List<UserDevice> devices = userDBService.asyncGetUserDevicesByTypes(user.getId(), null).get();
-		    if (!CollectionUtils.isEmpty(devices)) {
-		      // @TODO - choose UserDevice associated with merchant only.
-		      UserDevice device = devices.get(0);
+	}
 
-		      UserDeviceInfoResponse info = new UserDeviceInfoResponse();
-		      info.setDeviceType(device.getDeviceType());
-		      info.setImeiNo(device.getImeiNo());
-		      info.setRegistrationToken(device.getRegistrationToken());
+	public ResponseEntity getMerchantDipcoinRequest(final User user, final Merchant merchant,
+			final MerchantDipcoinRequest createReq) throws Exception {
 
-		      // @TODO - Move this encryption to per merchant basis
-		      // @NOTE - For decryption refer to CustomerDipcoinResource.processDipcoin
-		      createReq.setDeviceHash(APIUtils.encryptUserDeviceInfo(cryptoUtil, info));
-		    }
-		    createReq.setPartnerReferenceId(merchant.getReferenceId());
+		if (!this.userDBService.merchantRepresentative(user) || !this.userDBService.isActive(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+		if (createReq == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
+		}
 
-		    return ResponseEntity.ok(createReq);
-		  }
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching User Device")
+				.data("user", user.getId()).format());
+		List<UserDevice> devices = userDBService.asyncGetUserDevicesByTypes(user.getId(), null).get();
+		if (!CollectionUtils.isEmpty(devices)) {
+			// @TODO - choose UserDevice associated with merchant only.
+			UserDevice device = devices.get(0);
+
+			UserDeviceInfoResponse info = new UserDeviceInfoResponse();
+			info.setDeviceType(device.getDeviceType());
+			info.setImeiNo(device.getImeiNo());
+			info.setRegistrationToken(device.getRegistrationToken());
+
+			// @TODO - Move this encryption to per merchant basis
+			// @NOTE - For decryption refer to CustomerDipcoinResource.processDipcoin
+			createReq.setDeviceHash(APIUtils.encryptUserDeviceInfo(cryptoUtil, info));
+		}
+		createReq.setPartnerReferenceId(merchant.getReferenceId());
+
+		return ResponseEntity.ok(createReq);
+	}
 }

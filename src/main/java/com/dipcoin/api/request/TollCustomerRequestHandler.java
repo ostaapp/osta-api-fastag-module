@@ -52,11 +52,11 @@ public class TollCustomerRequestHandler {
 
 	@Autowired
 	private TollCustomerResource tollServicesResource;
-	
+
 	@Autowired
 	@Lazy
 	private HttpServletContext httpServletContext;
-	
+
 	@PostMapping("register")
 	@ApiOperation(value = "Registeration Details for toll services customer", notes = "API to add a new customer account.", response = TollRegistrationResponse.class)
 	@ApiResponses(value = {
@@ -74,6 +74,54 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
 				request, RegistrationType.DEFAULT.value(), clientTransactionId);
+	}
+	
+	// Endpoint for APK
+	@PostMapping("register/apk")
+	@ApiOperation(value = "Registeration Details for toll services customer from apk", notes = "API to add a new customer account from apk.", response = TollRegistrationResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity registerTollCustomerMobile(@RequestBody String request,
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, request,
+				RegistrationType.DEFAULT.value(), clientTransactionId);
+	}
+	
+	@PutMapping("register")
+	@ApiOperation(value = "Toll Customer Update Account", notes = "API to update existing Toll Customer account.", response = APIResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity updateTollCustomer(@RequestParam("RCImage") MultipartFile[] rcDoc,
+			@RequestParam("idProof") MultipartFile idProof, @RequestParam("request") String request,
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
+				request, RegistrationType.DEFAULT.value(), clientTransactionId);
+	}
+	
+	@DeleteMapping("{tcid:.*}")
+	@ApiOperation(value = "Toll Customer Delete Account", notes = "API to delete toll customer account.", response = APIResponse.class)
+	public ResponseEntity deleteAccount(
+			@ApiParam(value = "Toll registration Id", required = true) @PathParam("tcid") final String encryptedTCID,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.deleteTollCustomerAccount(httpServletContext.getUser(), encryptedTCID);
 	}
 
 	@GetMapping
@@ -93,7 +141,7 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.getTollCustomerDetails(httpServletContext.getUser(), status, tagId);
 	}
-	
+
 	// Get Toll customer Doc based on docpath
 	@GetMapping("doc")
 	@ApiOperation(value = "Getting the toll Customer Document based on doc path", notes = "API to get Toll Customer Doc based on doc path", response = TollRegistrationResponse.class)
@@ -111,7 +159,7 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.getTollCustomerDoc(httpServletContext.getUser(), clientTransactionId, docPath);
 	}
-	
+
 	// vehicle verification netc
 	@GetMapping("vehicleVerification")
 	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)
@@ -135,7 +183,7 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.vehicleVerification(httpServletContext.getUser(), clientTransactionId,
 				vehicleRegistrationNo, vehicleClass, tagId, tid, cardId, regType);
 	}
-	
+
 	@GetMapping("charges")
 	@ApiOperation(value = "Getting the vehicle charges based on bankId and vehicle class.", notes = "API to get all charges for vehicle based on bank and vehicle class", response = TollRegistrationResponse.class)
 	@ApiResponses(value = { @ApiResponse(code = 400, message = "Vehicle Class Not found", response = APIResponse.class),
@@ -150,7 +198,7 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
 				RegistrationType.DEFAULT.value());
 	}
-	
+
 	@GetMapping("IHMCL/charges")
 	@ApiOperation(value = "Getting the Vehicle Charges based on bankId and Vehicle Class for IHMCL.", notes = "API to get all Charges for Vehicle based on bank and vehicle Class for IHMCL", response = TollRegistrationResponse.class)
 	@ApiResponses(value = { @ApiResponse(code = 400, message = "Vehicle Class Not found", response = APIResponse.class),
@@ -165,7 +213,7 @@ public class TollCustomerRequestHandler {
 		return tollServicesResource.getTollVehicleCharges(httpServletContext.getUser(), cardId, vehicleClass,
 				RegistrationType.IHMCL.value());
 	}
-	
+
 	// reqVehicle details this Api is similar to toll vehicle verification api
 	// this api is used to get details from vahan system using vin & engineNo or vrn
 	// & engineNo combo
@@ -187,7 +235,7 @@ public class TollCustomerRequestHandler {
 
 		return tollServicesResource.reqVehicleDetails(vrn, vin, lastFiveDigitsOfEngineNo, null, bankReferenceId);
 	}
-	
+
 	// toll vehicle verification at Customer side
 	@GetMapping("vehicleVerificationStatus")
 	@ApiOperation(value = "Getting the vehicle Verification from netc", notes = "API to get vehicle verification details from netc", response = ApiResponse.class)

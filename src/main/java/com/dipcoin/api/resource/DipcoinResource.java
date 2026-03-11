@@ -28,6 +28,7 @@ import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.commons.CoreUtils;
 import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.commons.qrcode.Decorator;
+import com.dipcoin.db.services.CustomerDBService;
 import com.dipcoin.db.services.DipcoinDBService;
 import com.dipcoin.db.services.commons.DBConstants;
 import com.dipcoin.db.services.commons.DBConstants.BooleanStatus;
@@ -66,6 +67,9 @@ public class DipcoinResource {
  @Autowired
  @Lazy
  protected HttpServletContext httpServletContext;
+ 
+ @Autowired
+ private CustomerDBService customerDBService;
  
  public void setHttpServletContext(HttpServletContext httpServletContext) {
 	    this.httpServletContext = httpServletContext;
@@ -294,4 +298,8 @@ public class DipcoinResource {
 
 		    return transaction;
 		  }
+		  
+			public CustomerAccount getAccount(Integer userId, Integer cardId) {
+			    return customerDBService.getAccount(userId, cardId);
+			  }
 }
