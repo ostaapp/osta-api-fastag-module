@@ -26,7 +26,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.w3c.dom.Document;
+//import org.w3c.dom.Document;
 
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -110,14 +110,14 @@ public class TollSignatureGenerationServices {
 			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 			dbf.setNamespaceAware(true);
 
-			Document doc = dbf.newDocumentBuilder().parse(byteArrayInputStream);
-			DOMSignContext dsc = new DOMSignContext(keyEntry.getPrivateKey(), doc.getDocumentElement());
-			XMLSignature signature = fac.newXMLSignature(si, ki);
-			signature.sign(dsc);
-
-			TransformerFactory tf = TransformerFactory.newInstance();
-			Transformer trans = tf.newTransformer();
-			trans.transform(new DOMSource(doc), new StreamResult(byteArrayOutputStream));
+//			Document doc = dbf.newDocumentBuilder().parse(byteArrayInputStream);
+//			DOMSignContext dsc = new DOMSignContext(keyEntry.getPrivateKey(), doc.getDocumentElement());
+//			XMLSignature signature = fac.newXMLSignature(si, ki);
+//			signature.sign(dsc);
+//
+//			TransformerFactory tf = TransformerFactory.newInstance();
+//			Transformer trans = tf.newTransformer();
+//			trans.transform(new DOMSource(doc), new StreamResult(byteArrayOutputStream));
 
 			String str = new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8);
 			str = str.replace("&#13;", "");

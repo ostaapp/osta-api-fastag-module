@@ -46,7 +46,7 @@ import com.dipcoin.db.services.model.PartnerCredential;
 import com.dipcoin.db.services.model.User;
 import com.dipcoin.notification.services.model.NotificationRequestContext;
 import com.dipcoin.partner.db.services.PartnerAccountDBService;
-import com.dipcoin.partner.db.services.PartnerEntityDBService;
+//import com.dipcoin.partner.db.services.PartnerEntityDBService;
 import com.dipcoin.partner.db.services.commons.DBConstants.PartnerAccountStatus;
 import com.dipcoin.partner.db.services.commons.DBConstants.PartnerBankAccountCodes;
 import com.dipcoin.partner.db.services.model.Partner;
@@ -82,14 +82,14 @@ public class PartnerApprovalHelper {
   @Lazy
   private HttpServletContext httpServletContext;
 
-  @Autowired
-  private OfflineJobClient offlineJobClient;
+//  @Autowired
+//  private OfflineJobClient offlineJobClient;
 
   @Autowired
   private ApplicationProperties applicationProperties;
-  
-  @Autowired
-  private PartnerEntityDBService partnerEntityDBService;
+//  
+//  @Autowired
+//  private PartnerEntityDBService partnerEntityDBService;
   
   @Autowired
   private PartnerAccountDBService partnerAccountDBService;
@@ -240,336 +240,336 @@ public class PartnerApprovalHelper {
 
   }
 
-  @SuppressWarnings("null")
-public void verifyPartner(User user, Merchant merchant, Bank bank,
-      PartnerApprovalStatus updateReq, PartnerApprovalLevels status)
-      throws Exception, APIException {
-
-    String now = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
-    Boolean isPartnerApprovalData = false;
-    boolean sendEmail = false;
-    MerchantOnboard updateMerchantOnboard = null;
-    PartnerApprovalStatus partnerApprovalStatus = new PartnerApprovalStatus();
-    PartnerApproval partnerApproval = this.partnerDBService.getPartnerApproval(merchant, bank);
-
-    if (partnerApproval != null) {
-      partnerApprovalStatus =
-          objectMapper.readValue(partnerApproval.getApprovalLevels(), PartnerApprovalStatus.class);
-      isPartnerApprovalData = true;
-    } else {
-      partnerApprovalStatus.setApproval(PartnerApprovalLevels.NOT_STARTED.ordinal(), null,
-          PartnerApprovalLevels.NOT_STARTED.name());
-
-      setPartnerApprovalStatus(partnerApprovalStatus);
-
-      partnerApproval = new PartnerApproval();
-      if (merchant != null)
-        partnerApproval.setMerchant(merchant);
-      else
-        partnerApproval.setBank(bank);
-    }
-
-    if (updateReq != null) {
-      if (updateReq.getForm() != null) {
-        partnerApprovalStatus.setApproval(updateReq.getForm().getStatus(), user.getId(),
-            updateReq.getForm().getDescription());
-        partnerApprovalStatus.setForm(partnerApprovalStatus.getApproval());
-      } else if (updateReq.getDocument() != null) {
-        partnerApprovalStatus.setApproval(updateReq.getDocument().getStatus(), user.getId(),
-            updateReq.getDocument().getDescription());
-        partnerApprovalStatus.setDocument(partnerApprovalStatus.getApproval());
-      } else if (updateReq.getBankAccount() != null) {
-        partnerApprovalStatus.setApproval(updateReq.getBankAccount().getStatus(), user.getId(),
-            updateReq.getBankAccount().getDescription());
-        partnerApprovalStatus.setBankAccount(partnerApprovalStatus.getApproval());
-      } else if (updateReq.getPayment() != null) {
-        partnerApprovalStatus.setApproval(updateReq.getPayment().getStatus(), user.getId(),
-            updateReq.getPayment().getDescription());
-        partnerApprovalStatus.setPayment(partnerApprovalStatus.getApproval());
-      } else if (updateReq.getIntegration() != null) {
-        partnerApprovalStatus.setApproval(updateReq.getIntegration().getStatus(), user.getId(),
-            updateReq.getIntegration().getDescription());
-        partnerApprovalStatus.setIntegration(partnerApprovalStatus.getApproval());
-      }
-    }
-
-    partnerApproval.setApprovalLevels(objectMapper.writeValueAsString(partnerApprovalStatus));
-    if (isPartnerApprovalData)
-      partnerApproval = this.partnerDBService.updatePartnerApproval(partnerApproval);
-    else
-      partnerApproval = this.partnerDBService.addPartnerApproval(partnerApproval);
-
-    if (partnerApproval != null) {
-
-      Bank updateBank = null;
-      Merchant updateMerchant = null;
-      if (merchant != null) {
-
-        updateMerchantOnboard =
-            this.merchantDBService.getMerchantOnboardByReferenceId(merchant.getReferenceId());
-        if (updateMerchantOnboard == null) {
-          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-              APIResponse.error(HeaderCode.INTERNAL_ERROR));
-        }
-        updateMerchantOnboard.setUpdateTime(now);
-        updateMerchantOnboard.setUser(user);
-
-        if (PartnerApprovalLevels.APPROVED.equals(status)) {
-          String yearFromNow =
-              String.valueOf(DateTime.now(DateTimeZone.UTC).plusYears(1).getMillis());
-
-          List<Integer> partnerStatus =
-              Arrays.asList(MerchantStatus.DEACTIVATED.value(), MerchantStatus.DELETED.value());
-
-          updateMerchantOnboard.setStatus(MerchantStatus.ACTIVE.value());
-
-          if (merchant.getActivationEndDate() == null
-              || Long.parseLong(merchant.getActivationEndDate()) < Long.parseLong(now)
-              || partnerStatus.contains(merchant.getStatus())) {
-
-            updateMerchantOnboard.setActivationStartDate(now);
-            updateMerchantOnboard.setActivationEndDate(yearFromNow);
-            sendEmail = true;
-          }
-          updateInternalUser(user, merchant, null);
-          //Check for whether the Merchant details are present in PartnerCredential table
-          PartnerCredential credential =  partnerDBService.getCredentialByClientId(merchant.getReferenceId());
-          if(credential != null) {
-            credential.setStatus(DBConstants.PartnerCredentialStatus.ACTIVE.value());
-            credential = partnerDBService.updateCredential(credential);
-            if (credential == null) {
-              throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-                  APIResponse.error(HeaderCode.FAILED_TO_ADD_OR_UPDATE_CREDENTIALS));
-            }
-          }
-        } else {
-          updateMerchantOnboard.setStatus(MerchantStatus.REVIEW_IN_PROGRESS.value());
-        }
-
-        if (updateMerchantOnboard
-            .getBusinessSegment() == DBConstants.MerchantBusinessSegment.TYPE_NA.value()
-            || updateMerchantOnboard.getPartnerType() == DBConstants.MerchantPartnerType.TYPE_NA
-                .value()
-            || updateMerchantOnboard
-                .getCustomReportUI() == DBConstants.MerchantCustomReportUI.TYPE_NA.value()) {
-          throw new APIException(HttpStatus.BAD_REQUEST,
-              APIResponse.error(HeaderCode.MISSING_SELECTION_OF_CERTAIN_PARAMETERS));
-        }
-        
-        updateMerchantOnboard = this.merchantDBService.updateMerchantOnboard(updateMerchantOnboard);
-        if (updateMerchantOnboard == null) {
-          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-              APIResponse.error(HeaderCode.INTERNAL_ERROR));
-        }
-
-        if (DBConstants.MerchantStatus.ACTIVE.equals(updateMerchantOnboard.getStatus())) {
-          // Copy Merchantonboard to merchant
-          MerchantResource.updateMerchantTable(updateMerchantOnboard, merchant);
-          updateMerchant = this.merchantDBService.updateMerchant(merchant);
-          if (updateMerchant == null) {
-            throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-                APIResponse.error(HeaderCode.INTERNAL_ERROR));
-          }
-
-          List<User> merchantSuperAdmins = this.userDBService.getBankMerchantUsers(merchant.getId(),
-              Arrays.asList(UserRoles.MERCHANT_SUPERADMIN.value()));
-
-          if (CollectionUtils.isEmpty(merchantSuperAdmins))
-            return;
-
-          //Populating Partner Table in Partner Api system
-              
-          if (DBConstants.MerchantPartnerType.PARTNER.value() == updateMerchant.getPartnerType()
-              || DBConstants.MerchantPartnerType.PARTNER_ORGANISATION.value() == updateMerchant
-                  .getPartnerType()
-              || DBConstants.MerchantPartnerType.PARTNER_AGGREGATOR.value() == updateMerchant
-                  .getPartnerType()
-              || DBConstants.MerchantPartnerType.INTERNAL_PARTNER.value() == updateMerchant
-                  .getPartnerType()
-              || DBConstants.MerchantPartnerType.PARTNER_WHOLESALER.value() == updateMerchant
-                  .getPartnerType()
-              || DBConstants.MerchantPartnerType.PARTNER_RETAILER.value() == updateMerchant
-                  .getPartnerType()) {
-
-
-            Partner partner = new Partner();
-            
-        	partner = this.partnerEntityDBService.getPartner(updateMerchant.getReferenceId());
-        	 
-        	if(partner == null) {
-            partner.setType(
-                com.dipcoin.partner.db.services.commons.DBConstants.PartnerType.PARENT.value());
-            partner.setReferenceId(updateMerchant.getReferenceId());
-            partner.setEmail(updateMerchant.getEmailId());
-            partner.setName(updateMerchant.getName());
-            partner.setPhone(updateMerchant.getOfficeNumber());
-            partner.setStatus(
-                com.dipcoin.partner.db.services.commons.DBConstants.PartnerStatus.ACTIVE.value());
-            partner.setUpdateTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-
-            partner = this.partnerEntityDBService.addPartner(partner);
-
-            if (partner == null) {
-              throw new APIException(HttpStatus.BAD_REQUEST,
-                  APIResponse.error(HeaderCode.FAILED_TO_ADD_PARTNER_DETAILS));
-            }
-        	}
-            // Check if the Merchant has an Bank Account added if so, then add corresponding entries
-            // in Partner Account table
-
-            BankAccount bankaccount =
-                this.bankDBService.getPrimaryMerchantBankAccount(updateMerchant.getId());
-
-            if (bankaccount != null
-                && DBConstants.BankAccountStatus.ACTIVE.equals(bankaccount.getStatus())) {
-              LOG.info("Merchant Bank Accounts details are fetched " + bankaccount);
-
-              addPartnerAccounts(bankaccount, null, partner,
-                  PartnerBankAccountCodes.PARTNER_ACCOUNT.value());
-              addPartnerAccounts(bankaccount, null, partner,
-                  PartnerBankAccountCodes.PARTNER_PRINCIPAL_ACCOUNT.value());
-
-              List<PartnerAccount> partnerAccounts =
-                  this.partnerAccountDBService.getPartnerAccountByCodes(
-                      Arrays.asList(PartnerBankAccountCodes.BRONTOO_COMMISSION.value(),
-                          PartnerBankAccountCodes.BRONTOO_GST.value(),
-                          PartnerBankAccountCodes.BRONTOO_SETTLEMENT_ACCOUNT.value()));
-              if (!CollectionUtils.isEmpty(partnerAccounts)) {
-                for (PartnerAccount partnerAccount : partnerAccounts) {
-                  if (PartnerBankAccountCodes.BRONTOO_COMMISSION.value() == partnerAccount
-                      .getCode()) {
-                    PartnerAccount pAccount = this.partnerAccountDBService.findByPartnerIdAndCode(
-                        partner.getId(), PartnerBankAccountCodes.BRONTOO_COMMISSION.value());
-                    if (pAccount != null) {
-                      continue;
-                    }
-                  } else if (PartnerBankAccountCodes.BRONTOO_GST.value() == partnerAccount
-                      .getCode()) {
-                    PartnerAccount pAccount = this.partnerAccountDBService.findByPartnerIdAndCode(
-                        partner.getId(), PartnerBankAccountCodes.BRONTOO_GST.value());
-                    if (pAccount != null) {
-                      continue;
-                    }
-                  } else if (PartnerBankAccountCodes.BRONTOO_SETTLEMENT_ACCOUNT
-                      .value() == partnerAccount.getCode()) {
-                    PartnerAccount pAccount =
-                        this.partnerAccountDBService.findByPartnerIdAndCode(partner.getId(),
-                            PartnerBankAccountCodes.BRONTOO_SETTLEMENT_ACCOUNT.value());
-                    if (pAccount != null) {
-                      continue;
-                    }
-                  }
-                  addPartnerAccounts(null, partnerAccount, partner, partnerAccount.getCode());
-                }
-              }
-            }
-          }                     
-          for (User merchantUser : merchantSuperAdmins) {
-            if (sendEmail && merchantUser.getIsEmailVerified() == BooleanStatus.YES.value()
-                && !emailUtils.sendMerchantApprovalEmail(merchantUser)) {
-              LOG.error("Failed to send email to user " + user.getId());
-            }
-
-            if (!applicationProperties.getAwsSMSClient() && 
-                !smsClient.sendSms(merchantUser.getPhone(), Templates.MerchantApproval.format(),
-                httpServletContext.getClientFeatureFlags().smsEnabled())) {
-              LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-                  .message("Failed to send SMS").data("phone", merchantUser.getPhone())
-                  .data("template", Templates.MerchantApproval.format()).format());
-            }
-            
-            if (applicationProperties.getAwsSMSClient()) {
-
-              NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
-              notificationRequestContext.setTraceId(httpServletContext.getTraceId());
-              if (!notificationResource.sendSms(merchantUser.getPhone(),
-                  Templates.MerchantApproval.format(),
-                  httpServletContext.getClientFeatureFlags().smsEnabled(), notificationRequestContext)) {
-                
-                LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-                    .message("Failed to send SMS").data("phone", merchantUser.getPhone())
-                    .data("template", Templates.MerchantApproval.format()).format());
-
-              }
-            }
-          }
-      }
-      }
-
-      else {
-        bank.setUpdateTime(now);
-        bank.setUser(user);
-      
-     // virtual bank user is our internal customer for BBPS at Branch
-     // adding it for add customer account
-        
-     User virtualBankUser = null;
-     
-     // if bank's api customization contains bbps @ branch the virtual bank user must be added
-     if (PartnerApprovalLevels.IN_REVIEW.equals(status)) {
-       if (StringUtils.isNotEmpty(bank.getApiCustomization()) && (bank.getApiCustomization()
-           .contains(DBConstants.ApiCustomization.BRANCH_RECHARGE_BILLPAYMENTS_BASIC.toString()) || bank.getApiCustomization()
-               .contains(DBConstants.ApiCustomization.BRANCH_RECHARGE_BILLPAYMENTS_FUND_TRANSFER.toString()))) {
-         virtualBankUser = updateVirtualBankUser(user, bank);
-       }
-     }
-        if (PartnerApprovalLevels.APPROVED.equals(status)) {
-          
-          String yearFromNow =
-              String.valueOf(DateTime.now(DateTimeZone.UTC).plusYears(1).getMillis());
-
-          List<Integer> partnerStatus =
-              Arrays.asList(BankStatus.DEACTIVATED.value(), BankStatus.DELETED.value());
-
-          bank.setStatus(BankStatus.ACTIVE.value());
-
-          if (bank.getActivationEndDate() == null
-              || Long.parseLong(bank.getActivationEndDate()) < Long.parseLong(now)
-              || partnerStatus.contains(bank.getStatus())) {
-
-            bank.setActivationStartDate(now);
-            bank.setActivationEndDate(yearFromNow);
-          }
-
-          updateInternalUser(user, null, bank);
-         
-          PartnerCredential credential =  partnerDBService.getCredentialByClientId(bank.getReferenceId());
-          if(credential != null) {
-            credential.setStatus(DBConstants.PartnerCredentialStatus.ACTIVE.value());
-            
-            credential = partnerDBService.updateCredential(credential);
-            if (credential == null) {
-              throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-                  APIResponse.error(HeaderCode.FAILED_TO_ADD_OR_UPDATE_CREDENTIALS));
-            }
-          }
-          
-        } else {
-          bank.setStatus(BankStatus.REVIEW_IN_PROGRESS.value());
-        }
-
-        updateBank = this.bankDBService.asyncUpdateBank(bank).get();
-        if (updateBank == null) {
-          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-              APIResponse.error(HeaderCode.INTERNAL_ERROR));
-        }  
-
-      String traceId = httpServletContext.getTraceId();
-      // when merchant or bank is getting active then we call offline job to make a folder on sftp
-      // area.
-      // as of now offline code not merged yet so command
-      // if (updateMerchant != null &&
-      // DBConstants.MerchantStatus.ACTIVE.equals(updateMerchant.getStatus())) {
-      // offlineJobClient.initPartnerSetupRequest(updateMerchant, null, traceId);
-      // }
-      //
-      // if (updateBank != null && DBConstants.BankStatus.ACTIVE.equals(updateBank.getStatus())) {
-      // offlineJobClient.initPartnerSetupRequest(null, updateBank, traceId);
-      // }
-
-      } 
-  }
-  }
+//  @SuppressWarnings("null")
+//public void verifyPartner(User user, Merchant merchant, Bank bank,
+//      PartnerApprovalStatus updateReq, PartnerApprovalLevels status)
+//      throws Exception, APIException {
+//
+//    String now = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
+//    Boolean isPartnerApprovalData = false;
+//    boolean sendEmail = false;
+//    MerchantOnboard updateMerchantOnboard = null;
+//    PartnerApprovalStatus partnerApprovalStatus = new PartnerApprovalStatus();
+//    PartnerApproval partnerApproval = this.partnerDBService.getPartnerApproval(merchant, bank);
+//
+//    if (partnerApproval != null) {
+//      partnerApprovalStatus =
+//          objectMapper.readValue(partnerApproval.getApprovalLevels(), PartnerApprovalStatus.class);
+//      isPartnerApprovalData = true;
+//    } else {
+//      partnerApprovalStatus.setApproval(PartnerApprovalLevels.NOT_STARTED.ordinal(), null,
+//          PartnerApprovalLevels.NOT_STARTED.name());
+//
+//      setPartnerApprovalStatus(partnerApprovalStatus);
+//
+//      partnerApproval = new PartnerApproval();
+//      if (merchant != null)
+//        partnerApproval.setMerchant(merchant);
+//      else
+//        partnerApproval.setBank(bank);
+//    }
+//
+//    if (updateReq != null) {
+//      if (updateReq.getForm() != null) {
+//        partnerApprovalStatus.setApproval(updateReq.getForm().getStatus(), user.getId(),
+//            updateReq.getForm().getDescription());
+//        partnerApprovalStatus.setForm(partnerApprovalStatus.getApproval());
+//      } else if (updateReq.getDocument() != null) {
+//        partnerApprovalStatus.setApproval(updateReq.getDocument().getStatus(), user.getId(),
+//            updateReq.getDocument().getDescription());
+//        partnerApprovalStatus.setDocument(partnerApprovalStatus.getApproval());
+//      } else if (updateReq.getBankAccount() != null) {
+//        partnerApprovalStatus.setApproval(updateReq.getBankAccount().getStatus(), user.getId(),
+//            updateReq.getBankAccount().getDescription());
+//        partnerApprovalStatus.setBankAccount(partnerApprovalStatus.getApproval());
+//      } else if (updateReq.getPayment() != null) {
+//        partnerApprovalStatus.setApproval(updateReq.getPayment().getStatus(), user.getId(),
+//            updateReq.getPayment().getDescription());
+//        partnerApprovalStatus.setPayment(partnerApprovalStatus.getApproval());
+//      } else if (updateReq.getIntegration() != null) {
+//        partnerApprovalStatus.setApproval(updateReq.getIntegration().getStatus(), user.getId(),
+//            updateReq.getIntegration().getDescription());
+//        partnerApprovalStatus.setIntegration(partnerApprovalStatus.getApproval());
+//      }
+//    }
+//
+//    partnerApproval.setApprovalLevels(objectMapper.writeValueAsString(partnerApprovalStatus));
+//    if (isPartnerApprovalData)
+//      partnerApproval = this.partnerDBService.updatePartnerApproval(partnerApproval);
+//    else
+//      partnerApproval = this.partnerDBService.addPartnerApproval(partnerApproval);
+//
+//    if (partnerApproval != null) {
+//
+//      Bank updateBank = null;
+//      Merchant updateMerchant = null;
+//      if (merchant != null) {
+//
+//        updateMerchantOnboard =
+//            this.merchantDBService.getMerchantOnboardByReferenceId(merchant.getReferenceId());
+//        if (updateMerchantOnboard == null) {
+//          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//              APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//        }
+//        updateMerchantOnboard.setUpdateTime(now);
+//        updateMerchantOnboard.setUser(user);
+//
+//        if (PartnerApprovalLevels.APPROVED.equals(status)) {
+//          String yearFromNow =
+//              String.valueOf(DateTime.now(DateTimeZone.UTC).plusYears(1).getMillis());
+//
+//          List<Integer> partnerStatus =
+//              Arrays.asList(MerchantStatus.DEACTIVATED.value(), MerchantStatus.DELETED.value());
+//
+//          updateMerchantOnboard.setStatus(MerchantStatus.ACTIVE.value());
+//
+//          if (merchant.getActivationEndDate() == null
+//              || Long.parseLong(merchant.getActivationEndDate()) < Long.parseLong(now)
+//              || partnerStatus.contains(merchant.getStatus())) {
+//
+//            updateMerchantOnboard.setActivationStartDate(now);
+//            updateMerchantOnboard.setActivationEndDate(yearFromNow);
+//            sendEmail = true;
+//          }
+//          updateInternalUser(user, merchant, null);
+//          //Check for whether the Merchant details are present in PartnerCredential table
+//          PartnerCredential credential =  partnerDBService.getCredentialByClientId(merchant.getReferenceId());
+//          if(credential != null) {
+//            credential.setStatus(DBConstants.PartnerCredentialStatus.ACTIVE.value());
+//            credential = partnerDBService.updateCredential(credential);
+//            if (credential == null) {
+//              throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//                  APIResponse.error(HeaderCode.FAILED_TO_ADD_OR_UPDATE_CREDENTIALS));
+//            }
+//          }
+//        } else {
+//          updateMerchantOnboard.setStatus(MerchantStatus.REVIEW_IN_PROGRESS.value());
+//        }
+//
+//        if (updateMerchantOnboard
+//            .getBusinessSegment() == DBConstants.MerchantBusinessSegment.TYPE_NA.value()
+//            || updateMerchantOnboard.getPartnerType() == DBConstants.MerchantPartnerType.TYPE_NA
+//                .value()
+//            || updateMerchantOnboard
+//                .getCustomReportUI() == DBConstants.MerchantCustomReportUI.TYPE_NA.value()) {
+//          throw new APIException(HttpStatus.BAD_REQUEST,
+//              APIResponse.error(HeaderCode.MISSING_SELECTION_OF_CERTAIN_PARAMETERS));
+//        }
+//        
+//        updateMerchantOnboard = this.merchantDBService.updateMerchantOnboard(updateMerchantOnboard);
+//        if (updateMerchantOnboard == null) {
+//          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//              APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//        }
+//
+//        if (DBConstants.MerchantStatus.ACTIVE.equals(updateMerchantOnboard.getStatus())) {
+//          // Copy Merchantonboard to merchant
+//          MerchantResource.updateMerchantTable(updateMerchantOnboard, merchant);
+//          updateMerchant = this.merchantDBService.updateMerchant(merchant);
+//          if (updateMerchant == null) {
+//            throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//                APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//          }
+//
+//          List<User> merchantSuperAdmins = this.userDBService.getBankMerchantUsers(merchant.getId(),
+//              Arrays.asList(UserRoles.MERCHANT_SUPERADMIN.value()));
+//
+//          if (CollectionUtils.isEmpty(merchantSuperAdmins))
+//            return;
+//
+//          //Populating Partner Table in Partner Api system
+//              
+//          if (DBConstants.MerchantPartnerType.PARTNER.value() == updateMerchant.getPartnerType()
+//              || DBConstants.MerchantPartnerType.PARTNER_ORGANISATION.value() == updateMerchant
+//                  .getPartnerType()
+//              || DBConstants.MerchantPartnerType.PARTNER_AGGREGATOR.value() == updateMerchant
+//                  .getPartnerType()
+//              || DBConstants.MerchantPartnerType.INTERNAL_PARTNER.value() == updateMerchant
+//                  .getPartnerType()
+//              || DBConstants.MerchantPartnerType.PARTNER_WHOLESALER.value() == updateMerchant
+//                  .getPartnerType()
+//              || DBConstants.MerchantPartnerType.PARTNER_RETAILER.value() == updateMerchant
+//                  .getPartnerType()) {
+//
+//
+//            Partner partner = new Partner();
+//            
+//        	partner = this.partnerEntityDBService.getPartner(updateMerchant.getReferenceId());
+//        	 
+//        	if(partner == null) {
+//            partner.setType(
+//                com.dipcoin.partner.db.services.commons.DBConstants.PartnerType.PARENT.value());
+//            partner.setReferenceId(updateMerchant.getReferenceId());
+//            partner.setEmail(updateMerchant.getEmailId());
+//            partner.setName(updateMerchant.getName());
+//            partner.setPhone(updateMerchant.getOfficeNumber());
+//            partner.setStatus(
+//                com.dipcoin.partner.db.services.commons.DBConstants.PartnerStatus.ACTIVE.value());
+//            partner.setUpdateTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+//
+//            partner = this.partnerEntityDBService.addPartner(partner);
+//
+//            if (partner == null) {
+//              throw new APIException(HttpStatus.BAD_REQUEST,
+//                  APIResponse.error(HeaderCode.FAILED_TO_ADD_PARTNER_DETAILS));
+//            }
+//        	}
+//            // Check if the Merchant has an Bank Account added if so, then add corresponding entries
+//            // in Partner Account table
+//
+//            BankAccount bankaccount =
+//                this.bankDBService.getPrimaryMerchantBankAccount(updateMerchant.getId());
+//
+//            if (bankaccount != null
+//                && DBConstants.BankAccountStatus.ACTIVE.equals(bankaccount.getStatus())) {
+//              LOG.info("Merchant Bank Accounts details are fetched " + bankaccount);
+//
+//              addPartnerAccounts(bankaccount, null, partner,
+//                  PartnerBankAccountCodes.PARTNER_ACCOUNT.value());
+//              addPartnerAccounts(bankaccount, null, partner,
+//                  PartnerBankAccountCodes.PARTNER_PRINCIPAL_ACCOUNT.value());
+//
+//              List<PartnerAccount> partnerAccounts =
+//                  this.partnerAccountDBService.getPartnerAccountByCodes(
+//                      Arrays.asList(PartnerBankAccountCodes.BRONTOO_COMMISSION.value(),
+//                          PartnerBankAccountCodes.BRONTOO_GST.value(),
+//                          PartnerBankAccountCodes.BRONTOO_SETTLEMENT_ACCOUNT.value()));
+//              if (!CollectionUtils.isEmpty(partnerAccounts)) {
+//                for (PartnerAccount partnerAccount : partnerAccounts) {
+//                  if (PartnerBankAccountCodes.BRONTOO_COMMISSION.value() == partnerAccount
+//                      .getCode()) {
+//                    PartnerAccount pAccount = this.partnerAccountDBService.findByPartnerIdAndCode(
+//                        partner.getId(), PartnerBankAccountCodes.BRONTOO_COMMISSION.value());
+//                    if (pAccount != null) {
+//                      continue;
+//                    }
+//                  } else if (PartnerBankAccountCodes.BRONTOO_GST.value() == partnerAccount
+//                      .getCode()) {
+//                    PartnerAccount pAccount = this.partnerAccountDBService.findByPartnerIdAndCode(
+//                        partner.getId(), PartnerBankAccountCodes.BRONTOO_GST.value());
+//                    if (pAccount != null) {
+//                      continue;
+//                    }
+//                  } else if (PartnerBankAccountCodes.BRONTOO_SETTLEMENT_ACCOUNT
+//                      .value() == partnerAccount.getCode()) {
+//                    PartnerAccount pAccount =
+//                        this.partnerAccountDBService.findByPartnerIdAndCode(partner.getId(),
+//                            PartnerBankAccountCodes.BRONTOO_SETTLEMENT_ACCOUNT.value());
+//                    if (pAccount != null) {
+//                      continue;
+//                    }
+//                  }
+//                  addPartnerAccounts(null, partnerAccount, partner, partnerAccount.getCode());
+//                }
+//              }
+//            }
+//          }                     
+//          for (User merchantUser : merchantSuperAdmins) {
+//            if (sendEmail && merchantUser.getIsEmailVerified() == BooleanStatus.YES.value()
+//                && !emailUtils.sendMerchantApprovalEmail(merchantUser)) {
+//              LOG.error("Failed to send email to user " + user.getId());
+//            }
+//
+//            if (!applicationProperties.getAwsSMSClient() && 
+//                !smsClient.sendSms(merchantUser.getPhone(), Templates.MerchantApproval.format(),
+//                httpServletContext.getClientFeatureFlags().smsEnabled())) {
+//              LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+//                  .message("Failed to send SMS").data("phone", merchantUser.getPhone())
+//                  .data("template", Templates.MerchantApproval.format()).format());
+//            }
+//            
+//            if (applicationProperties.getAwsSMSClient()) {
+//
+//              NotificationRequestContext notificationRequestContext = new NotificationRequestContext();
+//              notificationRequestContext.setTraceId(httpServletContext.getTraceId());
+//              if (!notificationResource.sendSms(merchantUser.getPhone(),
+//                  Templates.MerchantApproval.format(),
+//                  httpServletContext.getClientFeatureFlags().smsEnabled(), notificationRequestContext)) {
+//                
+//                LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+//                    .message("Failed to send SMS").data("phone", merchantUser.getPhone())
+//                    .data("template", Templates.MerchantApproval.format()).format());
+//
+//              }
+//            }
+//          }
+//      }
+//      }
+//
+//      else {
+//        bank.setUpdateTime(now);
+//        bank.setUser(user);
+//      
+//     // virtual bank user is our internal customer for BBPS at Branch
+//     // adding it for add customer account
+//        
+//     User virtualBankUser = null;
+//     
+//     // if bank's api customization contains bbps @ branch the virtual bank user must be added
+//     if (PartnerApprovalLevels.IN_REVIEW.equals(status)) {
+//       if (StringUtils.isNotEmpty(bank.getApiCustomization()) && (bank.getApiCustomization()
+//           .contains(DBConstants.ApiCustomization.BRANCH_RECHARGE_BILLPAYMENTS_BASIC.toString()) || bank.getApiCustomization()
+//               .contains(DBConstants.ApiCustomization.BRANCH_RECHARGE_BILLPAYMENTS_FUND_TRANSFER.toString()))) {
+//         virtualBankUser = updateVirtualBankUser(user, bank);
+//       }
+//     }
+//        if (PartnerApprovalLevels.APPROVED.equals(status)) {
+//          
+//          String yearFromNow =
+//              String.valueOf(DateTime.now(DateTimeZone.UTC).plusYears(1).getMillis());
+//
+//          List<Integer> partnerStatus =
+//              Arrays.asList(BankStatus.DEACTIVATED.value(), BankStatus.DELETED.value());
+//
+//          bank.setStatus(BankStatus.ACTIVE.value());
+//
+//          if (bank.getActivationEndDate() == null
+//              || Long.parseLong(bank.getActivationEndDate()) < Long.parseLong(now)
+//              || partnerStatus.contains(bank.getStatus())) {
+//
+//            bank.setActivationStartDate(now);
+//            bank.setActivationEndDate(yearFromNow);
+//          }
+//
+//          updateInternalUser(user, null, bank);
+//         
+//          PartnerCredential credential =  partnerDBService.getCredentialByClientId(bank.getReferenceId());
+//          if(credential != null) {
+//            credential.setStatus(DBConstants.PartnerCredentialStatus.ACTIVE.value());
+//            
+//            credential = partnerDBService.updateCredential(credential);
+//            if (credential == null) {
+//              throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//                  APIResponse.error(HeaderCode.FAILED_TO_ADD_OR_UPDATE_CREDENTIALS));
+//            }
+//          }
+//          
+//        } else {
+//          bank.setStatus(BankStatus.REVIEW_IN_PROGRESS.value());
+//        }
+//
+//        updateBank = this.bankDBService.asyncUpdateBank(bank).get();
+//        if (updateBank == null) {
+//          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//              APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//        }  
+//
+//      String traceId = httpServletContext.getTraceId();
+//      // when merchant or bank is getting active then we call offline job to make a folder on sftp
+//      // area.
+//      // as of now offline code not merged yet so command
+//      // if (updateMerchant != null &&
+//      // DBConstants.MerchantStatus.ACTIVE.equals(updateMerchant.getStatus())) {
+//      // offlineJobClient.initPartnerSetupRequest(updateMerchant, null, traceId);
+//      // }
+//      //
+//      // if (updateBank != null && DBConstants.BankStatus.ACTIVE.equals(updateBank.getStatus())) {
+//      // offlineJobClient.initPartnerSetupRequest(null, updateBank, traceId);
+//      // }
+//
+//      } 
+//  }
+//  }
   
 
   /*
@@ -588,34 +588,34 @@ public void verifyPartner(User user, Merchant merchant, Bank bank,
     return partnerApprovalStatus;
   }
 
-  protected void updateInternalUser(User user, Merchant merchant, Bank bank)
-      throws APIException, Exception {
-
-    // init internal user
-    User internalUser =
-        APIUtils.populatePartnerInternalUser(httpServletContext, user, merchant, bank);
-    if (internalUser == null) {
-      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-          APIResponse.error(HeaderCode.INTERNAL_ERROR));
-    }
-    // fetch existing internal user
-    List<User> existingInternalUsers = this.userDBService.getUsersByRoles(internalUser.getEmail(),
-        Arrays.asList(internalUser.getRole()), null);
-    User existingInternalUser =
-        !CollectionUtils.isEmpty(existingInternalUsers) ? existingInternalUsers.get(0) : null;
-
-    // If internal user already exists, set values and update
-    // If not add new internal user created
-    if (existingInternalUser != null) {
-      internalUser = existingInternalUser;
-      internalUser.setStatus(UserStatus.ACTIVE.value());
-      internalUser.setUpdateDate(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-    }
-    if (this.userDBService.updateUser(internalUser) == null) {
-      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-          APIResponse.error(HeaderCode.INTERNAL_ERROR));
-    }
-  }
+//  protected void updateInternalUser(User user, Merchant merchant, Bank bank)
+//      throws APIException, Exception {
+//
+//    // init internal user
+//    User internalUser =
+//        APIUtils.populatePartnerInternalUser(httpServletContext, user, merchant, bank);
+//    if (internalUser == null) {
+//      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//          APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//    }
+//    // fetch existing internal user
+//    List<User> existingInternalUsers = this.userDBService.getUsersByRoles(internalUser.getEmail(),
+//        Arrays.asList(internalUser.getRole()), null);
+//    User existingInternalUser =
+//        !CollectionUtils.isEmpty(existingInternalUsers) ? existingInternalUsers.get(0) : null;
+//
+//    // If internal user already exists, set values and update
+//    // If not add new internal user created
+//    if (existingInternalUser != null) {
+//      internalUser = existingInternalUser;
+//      internalUser.setStatus(UserStatus.ACTIVE.value());
+//      internalUser.setUpdateDate(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+//    }
+//    if (this.userDBService.updateUser(internalUser) == null) {
+//      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//          APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//    }
+//  }
 
   protected void setPartnerApprovalStatus(PartnerApprovalStatus partnerApprovalStatus) {
 
@@ -643,37 +643,37 @@ public void verifyPartner(User user, Merchant merchant, Bank bank,
       partnerApprovalStatus.setIntegration(partnerApprovalStatus.getApproval());
   }
   
-  public User updateVirtualBankUser(User user, Bank bank)
-      throws APIException, Exception {
-
-    // init internal user
-    User virtualBankUser =
-        APIUtils.populateVirtualBankUser(httpServletContext, user, bank);
-    if (virtualBankUser == null) {
-      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-          APIResponse.error(HeaderCode.INTERNAL_ERROR));
-    }
-    // fetch existing internal user
-    List<User> existingInternalUsers = this.userDBService.getUsersByRoles(virtualBankUser.getEmail(),
-        Arrays.asList(virtualBankUser.getRole()), null);
-    User existingInternalUser =
-        !CollectionUtils.isEmpty(existingInternalUsers) ? existingInternalUsers.get(0) : null;
-
-    // If internal user already exists, set values and update
-    // If not add new internal user created
-    if (existingInternalUser != null) {
-      virtualBankUser = existingInternalUser;
-      virtualBankUser.setStatus(UserStatus.ACTIVE.value());
-      virtualBankUser.setUpdateDate(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-    }
-    
-    if (this.userDBService.updateUser(virtualBankUser) == null) {
-      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
-          APIResponse.error(HeaderCode.INTERNAL_ERROR));
-    }
-    
-    return virtualBankUser;
-  }
+//  public User updateVirtualBankUser(User user, Bank bank)
+//      throws APIException, Exception {
+//
+//    // init internal user
+//    User virtualBankUser =
+//        APIUtils.populateVirtualBankUser(httpServletContext, user, bank);
+//    if (virtualBankUser == null) {
+//      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//          APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//    }
+//    // fetch existing internal user
+//    List<User> existingInternalUsers = this.userDBService.getUsersByRoles(virtualBankUser.getEmail(),
+//        Arrays.asList(virtualBankUser.getRole()), null);
+//    User existingInternalUser =
+//        !CollectionUtils.isEmpty(existingInternalUsers) ? existingInternalUsers.get(0) : null;
+//
+//    // If internal user already exists, set values and update
+//    // If not add new internal user created
+//    if (existingInternalUser != null) {
+//      virtualBankUser = existingInternalUser;
+//      virtualBankUser.setStatus(UserStatus.ACTIVE.value());
+//      virtualBankUser.setUpdateDate(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
+//    }
+//    
+//    if (this.userDBService.updateUser(virtualBankUser) == null) {
+//      throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+//          APIResponse.error(HeaderCode.INTERNAL_ERROR));
+//    }
+//    
+//    return virtualBankUser;
+//  }
   
   public Bank getBank(String bankRefId) {
     return this.bankDBService.getBank(bankRefId);
