@@ -13,7 +13,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.ImportResource;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.annotation.PropertySources;
@@ -34,6 +33,7 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @PropertySources({
         @PropertySource(value = "classpath:application.properties", ignoreResourceNotFound = true),
+        @PropertySource(value = "classpath:dipcoin-ebank-services-${spring.profiles.active}.properties", ignoreResourceNotFound = true),
         @PropertySource(value = "classpath:dipcoin-db-services-${spring.profiles.active}.properties", ignoreResourceNotFound = true),
         @PropertySource(value = "classpath:dipcoin-api-system-application-${spring.profiles.active}.properties", ignoreResourceNotFound = true)
 })
