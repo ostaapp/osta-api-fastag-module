@@ -2307,7 +2307,7 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 	}
 
-	return tollServicesResource.getTagRechargeReport(httpServletContext.getUser(), startTime, endTime, start, count,
+	return tollServicesResource.getTagRechargeReport(bankUser, startTime, endTime, start, count,
 			vehicleNumber);
 }
 
