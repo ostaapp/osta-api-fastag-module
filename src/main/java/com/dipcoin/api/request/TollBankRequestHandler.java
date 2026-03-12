@@ -66,7 +66,6 @@ public class TollBankRequestHandler extends RequestHandler {
   @Autowired
   private TollBankResource tollServiceBankResource;
 
-
   @Autowired
   private TollCustomerResource tollServicesResource;
   
