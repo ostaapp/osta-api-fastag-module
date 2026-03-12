@@ -10,10 +10,10 @@ import org.apache.logging.log4j.Logger;
 import com.dipcoin.api.filter.request.AuthorizationInterceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dipcoin.api.model.APIResponse;
-import com.dipcoin.api.resource.SystemResource;
 import com.dipcoin.commons.LogFormatter;
 
 import java.io.IOException;
+import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
@@ -36,9 +36,6 @@ public class RequestHandlerInterceptor implements HandlerInterceptor {
 	private static final Logger log = LogManager.getLogger(RequestHandlerInterceptor.class);
   @Autowired
   private HttpServletContext httpServletContext;
-
-  @Autowired
-  private SystemResource systemResource;
 
 //  @Autowired
 //  @Qualifier("com.dipcoin.api.filter.request.BaseInterceptor")
@@ -117,12 +114,12 @@ public class RequestHandlerInterceptor implements HandlerInterceptor {
 
       // if in deployment mode skip any further processing
       if (APIConstants.DEPLOYMENT_API.equalsIgnoreCase(path)) {
-        ResponseEntity deployed = systemResource.getHealthcheck(false);
-        if (deployed.getStatusCodeValue() != HttpStatus.SC_OK) {
-          response.getWriter().print(deployed);
-          response.setStatus(deployed.getStatusCodeValue());
-          return false;
+        boolean isDeployment = isDeploymentInProgress();
+        response.setStatus(isDeployment ? HttpStatus.SC_TEMPORARY_REDIRECT : HttpStatus.SC_OK);
+        if (!isDeployment) {
+          response.getWriter().write(APIResponse.error(HeaderCode.REQUEST_OK).toString());
         }
+        return false;
       }
 
       // run base interceptor
@@ -185,5 +182,9 @@ public class RequestHandlerInterceptor implements HandlerInterceptor {
     }
 
     return true;
+  }
+
+  private boolean isDeploymentInProgress() {
+    return new File("/tmp/deployment").exists();
   }
 }

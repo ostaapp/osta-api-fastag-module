@@ -28,12 +28,14 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
 	    "classpath*:dipcoin-ebank-services-application-context.xml",
         "classpath*:dipcoin-core-services-application-context.xml",
         "classpath*:dipcoin-db-services-fastag.xml",
-        "classpath*:dipcoin-partner-services-application-context.xml"
+        "classpath*:dipcoin-partner-services-application-context.xml",
+        "classpath*:partner-db-services-application-context.xml"
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @PropertySources({
         @PropertySource(value = "classpath:application.properties", ignoreResourceNotFound = true),
         @PropertySource(value = "classpath:dipcoin-ebank-services-${spring.profiles.active}.properties", ignoreResourceNotFound = true),
+        @PropertySource(value = "classpath:partner-db-services-${spring.profiles.active}.properties", ignoreResourceNotFound = true),
         @PropertySource(value = "classpath:dipcoin-db-services-${spring.profiles.active}.properties", ignoreResourceNotFound = true),
         @PropertySource(value = "classpath:dipcoin-api-system-application-${spring.profiles.active}.properties", ignoreResourceNotFound = true)
 })

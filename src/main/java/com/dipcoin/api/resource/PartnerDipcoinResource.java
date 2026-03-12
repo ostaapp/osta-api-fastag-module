@@ -117,14 +117,16 @@ public class PartnerDipcoinResource extends DipcoinResource {
 	private DipcoinMetricRegistry dipcoinMetricRegistry;
 
 	@Autowired
+	@Qualifier("com.dipcoin.metrics.OauthMetricRegistry")
+	private OauthMetricRegistry oauthMetricRegistry;
+
+	@Autowired
 	@Lazy
 	private HttpServletContext httpServletContext;
 
 	@Autowired
 	private UserUtil userUtil;
 
-	@Autowired
-	private OauthMetricRegistry oauthMetricRegistry;
 
 	@Autowired
 	private UserEventResource userEventResource;
@@ -1241,12 +1243,12 @@ public class PartnerDipcoinResource extends DipcoinResource {
     if (source.equals(TransactionSource.OAUTH)) {
     	response.addHeaderCode(HeaderCode.TRANSACTION_SUCCESSFUL);
         //metric for dipcoin used via oauth trnx
-    	oauthMetricRegistry.dipcoinUsageUsingOauth().increment();
     	
       }else {
     	  response.addHeaderCode(HeaderCode.DIPCOIN_PROCESS_SUCCESS);
       }
     
+    oauthMetricRegistry.dipcoinUsageUsingOauth().increment();
     dipcoinMetricRegistry.dipcoinUsage().increment();
     
     if (encrypt) {

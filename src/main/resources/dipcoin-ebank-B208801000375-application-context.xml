@@ -1,0 +1,1689 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="
+            http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/util
+    		http://www.springframework.org/schema/util/spring-util-3.0.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<!-- ================================ -->
+	<!-- Define static mappings -->
+	<!--<bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean"> 
+		<property name="staticMethod" value="com.dipcoin.bank.services.comm.JSONBankRequest.Fields.setHeaders" 
+		/> <property name="arguments"> <list> </list> </property> </bean> -->
+
+	<!-- Define Request -->
+	<bean id="B208801000375UserAuthenticationRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<!-- MobileNo -->
+				<entry value="FastagReqParams.customerMobileNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.MOBILE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.cardNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.LOGIN" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.cardCVV2">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.PASSWORD" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.cardExpiryDate">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.CARD_EXPIRY" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.UserAuthenticationRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375ResendOTPRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.ResendOTPRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.ResendOTPRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankTransactionReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.ResendOTPRequest.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.ResendOTPRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.ResendOTPRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.ResendOTPRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375VerifyOTPRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankTransactionReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.otp">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.OTP" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.VerifyOTPRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375MarkLienRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.customerAccountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.BANK_UID" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.amount">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.AMOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.comment">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.COMMENT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.currency">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.MarkLienRequest.Fields.CURRENCY" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375RemoveLienRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry key = "FastagReqParams.transactionType" value="5"></entry>
+				<entry value="FastagReqParams.customerAccountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.BANK_UID" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.comment">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.COMMENT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.amountToUnhold">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.AMOUNT" />
+					</key>
+				</entry>
+				<entry key = "FastagReqParams.amountToDebit" value="0"></entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.holdJournalNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.CBS_JOURNAL_NUMBER" />
+					</key>
+				</entry>
+				<!-- <entry key = "FastagReqParams.holdDate" value="28092020"></entry> -->
+				<entry value="FastagReqParams.holdDate">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.CBS_DATE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.currency">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienRequest.Fields.CURRENCY" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375CustomerFundTransferRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.currency">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.CURRENCY" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.customerAccountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.BANK_UID" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.amount">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.AMOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.comment">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CustomerFundTransferRequest.Fields.COMMENT" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375RemoveLienAndDebitRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.customerAccountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.BANK_UID" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.comment">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.COMMENT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.amountToUnhold">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.REMOVE_LIEN_AMOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.amountToDebit">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.DEBIT_AMOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.holdJournalNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.CBS_JOURNAL_NUMBER" />
+					</key>
+				</entry>
+				<!-- <entry key = "FastagReqParams.holdDate" value="28092020"></entry> -->
+				<entry value="FastagReqParams.holdDate">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.CBS_DATE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.currency">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitRequest.Fields.CURRENCY" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375DeleteAccountRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.DeleteAccountRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.DeleteAccountRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.DeleteAccountRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.DeleteAccountRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankUID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.DeleteAccountRequest.Fields.BANK_UID" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.DeleteAccountRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375CallbackRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="requestType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.REQUEST_TYPE" />
+					</key>
+				</entry>
+				<entry value="responseCode">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.RESPONSE_CODE" />
+					</key>
+				</entry>
+				<entry value="ostaTransactionReferenceId">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="requestObj.firstName">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.FIRSTNAME" />
+					</key>
+				</entry>
+				<entry value="requestObj.lastname">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.LASTNAME" />
+					</key>
+				</entry>
+				<entry value="requestObj.phonenum">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.PHONENUM" />
+					</key>
+				</entry>
+				<entry value="requestObj.email">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.EMAIL" />
+					</key>
+				</entry>
+				<entry value="requestObj.accountId">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.ACCOUNTID" />
+					</key>
+				</entry>
+				<entry value="requestObj.cif">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.CIF" />
+					</key>
+				</entry>
+				<entry value="requestObj.tPin">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.CallbackRequest.Fields.TPIN" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375TpinValidationRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry value="cifNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.TpinValidationRequest.Fields.CIFNUMBER" />
+					</key>
+				</entry>
+				<entry value="tpin">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.TpinValidationRequest.Fields.TPIN" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375AccountFundTransferRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.currency">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.CURRENCY" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.amount">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.AMOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.debitAccountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.FROM_ACCOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.creditAccountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.TO_ACCOUNT" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.comment">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.COMMENT" />
+					</key>
+				</entry>
+				<!-- <entry value="FastagReqParams.fromAccountIFSCCode">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.FROM_ACCOUNT_IFSC_CODE" />
+					</key>
+				</entry>
+				<entry value="FastagReqParams.toAccountIFSCCode">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.AccountFundTransferRequest.Fields.TO_ACCOUNT_IFSC_CODE" />
+					</key>
+				</entry> -->
+			</util:map>
+		</property>
+	</bean>
+	
+	<!-- ================================ -->
+
+	<!-- Define Response -->
+	<bean id="B208801000375UserAuthenticationResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.UserAuthenticationResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.UserAuthenticationResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.UserAuthenticationResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.UserAuthenticationResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.UserAuthenticationResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375VerifyOTPResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.customerAccountNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.BANK_UID" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+				<entry key="accountNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.VerifyOTPResponse.Fields.ACCOUNT_NUMBER" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375ResendOTPResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.ResendOTPResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.ResendOTPResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.ResendOTPResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.ResendOTPResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.ResendOTPResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375MarkLienResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+				<entry key="FastagRes.cbsJournalNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.CBS_JOURNAL_NUMBER" />
+				</entry>
+				<entry key="FastagRes.cbsDate">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.CBS_DATE" />
+				</entry>
+				<entry key="FastagRes.branchCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.MarkLienResponse.Fields.BRANCH_CODE" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375RemoveLienResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375RemoveLienAndDebitResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+				<!-- <entry key="FastagRes.bankDebitResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.BANK_DEBIT_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankDebitResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.BANK_DEBIT_RESPONSE_DESC" />
+				</entry>
+				<entry key="FastagRes.debitJournalNo">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.RemoveLienAndDebitResponse.Fields.DEBIT_JOURNAL_NO" />
+				</entry> -->
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375CustomerFundTransferResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.CustomerFundTransferResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.CustomerFundTransferResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.CustomerFundTransferResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.CustomerFundTransferResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.CustomerFundTransferResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<bean id="B208801000375DeleteAccountResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.DeleteAccountResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.DeleteAccountResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.DeleteAccountResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.DeleteAccountResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.DeleteAccountResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375CallbackResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375TpinValidationResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+				<entry key="responseStatus">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TpinValidationResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				
+				<entry key="responseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TpinValidationResponse.Fields.RESPONSE_STATUS" />
+				</entry>
+				<entry key="responseMessage">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TpinValidationResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375BankUIDRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+				<entry value="dipcoinReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry value="transactionTime">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.TRANSACTION_TIME" />
+					</key>
+				</entry>
+				<entry value="transactionType">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.TRANSACTION_TYPE" />
+					</key>
+				</entry>
+				<entry value="attempt">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.ATTEMPT" />
+					</key>
+				</entry>
+				<entry value="accountNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.ACCOUNT_NUMBER" />
+					</key>
+				</entry>
+				<entry value="accountFlag">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.ACCOUNT_FLAG" />
+					</key>
+				</entry>
+				<entry value="bankID">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.BankUIDRequest.Fields.BANK_CODE" />
+					</key>
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375BankUIDResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="dipcoinReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.BankUIDResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.BankUIDResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.BankUIDResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.BankUIDResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+				<entry key="bankUID">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.BankUIDResponse.Fields.BANK_UID" />
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375AccountFundTransferResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.AccountFundTransferResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.transactionTime">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.AccountFundTransferResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.AccountFundTransferResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.bankResponseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.AccountFundTransferResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.bankResponseDesc">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.AccountFundTransferResponse.Fields.BANK_RESPONSE_DESC" />
+				</entry>
+				
+			</util:map>
+		</property>
+	</bean>
+	
+	<!-- ================================ -->
+	
+	<bean id="B208801000375TransactionStatusRequest"
+		class="com.dipcoin.bank.services.comm.JSONBankRequest">
+		<property name="queryFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="headers">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+			</util:map>
+		</property>
+
+		<property name="payloadFieldMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+
+				<entry value="FastagReqParams.ostaReferenceNumber">
+					<key>
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.TransactionStatusRequest.Fields.DIPCOIN_REFERENCE_NUMBER" />
+					</key>
+				</entry>
+				<entry key = "FastagReqParams.transactionType" value="0"></entry>
+			</util:map>
+		</property>
+	</bean>
+	
+	<bean id="B208801000375TransactionStatusResponse"
+		class="com.dipcoin.bank.services.comm.JSONBankResponse">
+		<property name="fieldsMapping">
+			<util:map map-class="java.util.HashMap"
+				key-type="java.lang.String" value-type="java.lang.String">
+				<entry key="FastagRes.ostaReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.DIPCOIN_REFERENCE_NUMBER" />
+				</entry>
+				<entry key="FastagRes.holdAmount">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.HOLD_AMOUNT" />
+				</entry>
+				<entry key="FastagRes.debitedAmount">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.DEBITED_AMOUNT" />
+				</entry>
+				<entry key="FastagRes.responseCode">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.BANK_RESPONSE_CODE" />
+				</entry>
+				<entry key="FastagRes.transactionTimeStamp">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.TRANSACTION_TIME" />
+				</entry>
+				<entry key="FastagRes.holdJournalNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.CBS_JOURNAL_NUMBER" />
+				</entry>
+				<entry key="FastagRes.holdDate">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.CBS_DATE" />
+				</entry>
+				<entry key="FastagRes.bankTransactionReferenceNumber">
+					<util:constant
+						static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.BANK_TRANSACTION_REFERENCE_NUMBER" />
+				</entry>				
+				<entry key="FastagRes.transactionType">					
+						<util:constant
+							static-field="com.dipcoin.bank.services.comm.TransactionStatusResponse.Fields.TRANSACTION_TYPE" />					
+				</entry>
+			</util:map>
+		</property>
+	</bean>
+
+	<!-- Define Clients -->
+	
+	<bean id="B208801000375TransactionStatus"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri" value="cbi-apic-prd/open-api/Fastag/InputFlow"/>
+		
+		<property name="encryptPayload"	value="true" />
+		
+		<property name="taggedResponseData"	value="true" />
+
+		<property name="bankRequest">
+			<ref bean="B208801000375TransactionStatusRequest"/>
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375TransactionStatusResponse"/>
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+	
+	<bean id="B208801000375BankUID"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow"/>
+
+		<property name="bankRequest">
+			<ref bean="B208801000375BankUIDRequest"/>
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375BankUIDResponse"/>
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375UserAuthentication"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		
+		<property name="encryptPayload"	value="true" />
+		
+		<property name="taggedResponseData"	value="true" />
+		
+		<property name="bankRequest">
+			<ref bean="B208801000375UserAuthenticationRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375UserAuthenticationResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+
+	</bean>
+
+	<bean id="B208801000375VerifyOTP"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		
+		<property name="encryptPayload"	value="true" />
+		
+		<property name="taggedResponseData"	value="true" />
+		
+		<property name="bankRequest">
+			<ref bean="B208801000375VerifyOTPRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375VerifyOTPResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375ResendOTP"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		<property name="encryptPayload"	value="true" />
+		<property name="taggedResponseData"	value="true" />
+		<property name="bankRequest">
+			<ref bean="B208801000375ResendOTPRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375ResendOTPResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375MarkLien"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		<property name="encryptPayload"	value="true" />
+		
+		<property name="taggedResponseData"	value="true" />
+		
+		<property name="amountNonDecimal" value="true" />
+		
+		<property name="bankRequest">
+			<ref bean="B208801000375MarkLienRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375MarkLienResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375RemoveLien"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+			
+		<property name="encryptPayload"	value="true" />
+		
+		<property name="taggedResponseData"	value="true" />
+		
+		<property name="amountNonDecimal" value="true" />
+
+		<property name="bankRequest">
+			<ref bean="B208801000375RemoveLienRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375RemoveLienResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375CustomerFundTransfer"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		
+		<property name="encryptPayload"	value="true" />
+		
+		<property name="taggedResponseData"	value="true" />
+		
+		<property name="amountNonDecimal" value="true" />
+
+		<property name="bankRequest">
+			<ref bean="B208801000375CustomerFundTransferRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375CustomerFundTransferResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375DeleteAccount"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		<property name="encryptPayload"	value="true" />
+		<property name="taggedResponseData"	value="true" />
+		<property name="bankRequest">
+			<ref bean="B208801000375DeleteAccountRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375DeleteAccountResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+	
+	<bean id="B208801000375RemoveLienAndDebitToAccount"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+
+		<property name="ostaReferenceIdLength" value="40" />
+		
+		<property name="amountNonDecimal" value="true" />
+		
+		<property name="uri"
+			value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+		<property name="encryptPayload"	value="true" />
+		<property name="taggedResponseData"	value="true" />
+		<property name="bankRequest">
+			<ref bean="B208801000375RemoveLienAndDebitRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375RemoveLienAndDebitResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+	
+	<bean id="B208801000375WebCallback"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+		value="${com.dipcoin.bank.services.client.host.cbi.netbanking.B208801000375}" />
+		<constructor-arg index="1"
+		value="${com.dipcoin.bank.services.client.port.cbi.netbanking.B208801000375}" />
+
+		<property name="uri"
+		value="${com.dipcoin.bank.services.client.cbi.netbanking.callback.web.B208801000375}" />
+		
+		<property name="isCallback"
+		value="true" />
+		
+		<property name="serviceType"
+		value="sdk" />
+		
+		<property name="bankRequest">
+			<ref bean="B208801000375CallbackRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375CallbackResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+	
+	<bean id="B208801000375MobCallback"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+		value="${com.dipcoin.bank.services.client.host.cbi.netbanking.B208801000375}" />
+		<constructor-arg index="1"
+		value="${com.dipcoin.bank.services.client.port.cbi.netbanking.B208801000375}" />
+
+		<property name="uri"
+		value="${com.dipcoin.bank.services.client.cbi.netbanking.callback.mob.B208801000375}" />
+		
+		<property name="isCallback"
+		value="true" />
+		
+		<property name="serviceType"
+		value="sdk" />
+		
+		<property name="bankRequest">
+			<ref bean="B208801000375CallbackRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375CallbackResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+	
+	<bean id="B208801000375TpinValidation"
+		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		<constructor-arg index="0"
+			value="${com.dipcoin.bank.services.client.host.cbi.netbanking.B208801000375}" />
+		<constructor-arg index="1"
+			value="${com.dipcoin.bank.services.client.port.cbi.netbanking.B208801000375}" />
+			
+		<property name="isTpinValidation"
+		value="true" />
+		
+		<property name="serviceType"
+		value="sdk" />
+		
+		<property name="encryptionIterations"
+		value="2" />
+		
+		<property name="encryptPayload"
+		value="true" />
+
+		<property name="uri"
+			value="${com.dipcoin.bank.services.client.cbi.netbanking.tpin.validation.B208801000375}" />
+
+		<property name="bankRequest">
+			<ref bean="B208801000375TpinValidationRequest" />
+		</property>
+		<property name="bankResponse">
+			<ref bean="B208801000375TpinValidationResponse" />
+		</property>
+		<property name="proxy">
+			<ref bean="httpProxy" />
+		</property>
+	</bean>
+
+	<bean id="B208801000375AccountFundTransfer"
+			class="com.dipcoin.bank.services.client.BankHTTPSClient">
+			<constructor-arg index="0"
+				value="${com.dipcoin.bank.services.client.host.cbi.ftm}" />
+			<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.cbi.ftm}" />
+	
+			<property name="ostaReferenceIdLength" value="40" />
+			
+			<property name="amountNonDecimal" value="true" />
+			
+			<property name="uri"
+				value="cbi-apic-prd/open-api/Fastag/InputFlow" />
+			<property name="encryptPayload"	value="true" />
+			<property name="taggedResponseData"	value="true" />
+			
+			<property name="bankRequest">
+				<ref bean="B208801000375AccountFundTransferRequest" />
+			</property>
+			<property name="bankResponse">
+				<ref bean="B208801000375AccountFundTransferResponse" />
+			</property>
+			<property name="proxy">
+				<ref bean="httpProxy" />
+			</property>
+		</bean>
+		
+	<!-- ================================ -->
+
+	<bean id="B208801000375Properties"
+		class="com.dipcoin.bank.services.utils.BankProperties">
+		<property name="locations"
+			value="classpath:dipcoin-ebank-services-B208801000375.properties" />
+		<property name="ignoreUnresolvablePlaceholders" value="true" />
+	</bean>
+
+	<!-- ================================ -->
+
+	<beans profile="uat">
+		<bean id="httpProxy" class="com.dipcoin.commons.HttpsUtils.Proxy">
+			<constructor-arg index="0" value="cedge.proxy.in" />
+			<constructor-arg index="1" value="3128" />
+			<constructor-arg index="2" value="true" />
+		</bean>
+	</beans>
+
+	<beans profile="prod">
+		<bean id="httpProxy" class="com.dipcoin.commons.HttpsUtils.Proxy">
+			<constructor-arg index="0" value="cedge.proxy.in" />
+			<constructor-arg index="1" value="3128" />
+			<constructor-arg index="2" value="true" />
+		</bean>
+	</beans>
+</beans>

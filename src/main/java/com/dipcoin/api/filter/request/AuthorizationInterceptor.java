@@ -5,7 +5,6 @@ import com.dipcoin.api.commons.APIConstants.RequestType;
 import com.dipcoin.api.commons.HeaderCode;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
-import com.dipcoin.api.resource.SystemResource;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import com.dipcoin.api.utils.UserMappingHelper;
@@ -44,8 +43,6 @@ public class AuthorizationInterceptor implements RequestInterceptor {
   // private UserLoginSession userLoginSession;
   @Autowired
   private UserDBService userDBService;
-  @Autowired
-  private SystemResource systemResource;
   @Autowired
   private HttpServletContext httpServletContext;
   @Autowired

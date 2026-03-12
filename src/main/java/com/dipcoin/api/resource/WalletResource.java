@@ -218,12 +218,21 @@ public class WalletResource {
 		                bankAPIServices.createVirtualAccount(bankRequestContext, createVirtualAccountRequest);
 		            CreateVirtualAccountResponse createVirtualAccountResponse = bankResponse.get();
 		            
-		            if (!createVirtualAccountResponse.getBankResponseCode()
-		                .equals(Integer.toString(DBConstants.BankTransactionsStatus.SUCCESS.value()))) {
-		                LOG.error("Failed to create virtual account");
-		                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
-		                throw new APIException(HttpStatus.BAD_REQUEST, paymentTopupWalletResponse);
-		            }
+            String createVirtualResponseCode =
+                createVirtualAccountResponse == null ? null : createVirtualAccountResponse.getBankResponseCode();
+            if (!Integer.toString(DBConstants.BankTransactionsStatus.SUCCESS.value())
+                .equals(createVirtualResponseCode)) {
+                LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                    .message("Failed to create virtual account")
+                    .data("bankResponseCode", createVirtualResponseCode)
+                    .data("bankResponseDesc",
+                        createVirtualAccountResponse != null
+                            ? createVirtualAccountResponse.getBankResponseDesc()
+                            : "No response from bank")
+                    .format());
+                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
+                throw new APIException(HttpStatus.BAD_REQUEST, paymentTopupWalletResponse);
+            }
 		            
 		            // ✅ FIX: Use bankUId from creation response
 		            String newBankUId = createVirtualAccountResponse.getBankUID();
@@ -285,12 +294,21 @@ public class WalletResource {
 		                    bankAPIServices.createVirtualAccount(bankRequestContext, createVirtualAccountRequest);
 		                CreateVirtualAccountResponse createVirtualAccountResponse = bankResponse.get();
 		                
-		                if (!createVirtualAccountResponse.getBankResponseCode()
-		                    .equals(Integer.toString(DBConstants.BankTransactionsStatus.SUCCESS.value()))) {
-		                    LOG.error("Failed to create virtual account for existing customer");
-		                    paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
-		                    throw new APIException(HttpStatus.BAD_REQUEST, paymentTopupWalletResponse);
-		                }
+                String existingCustomerCreateWalletCode =
+                    createVirtualAccountResponse == null ? null : createVirtualAccountResponse.getBankResponseCode();
+                if (!Integer.toString(DBConstants.BankTransactionsStatus.SUCCESS.value())
+                    .equals(existingCustomerCreateWalletCode)) {
+                    LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+                        .message("Failed to create virtual account for existing customer")
+                        .data("bankResponseCode", existingCustomerCreateWalletCode)
+                        .data("bankResponseDesc",
+                            createVirtualAccountResponse != null
+                                ? createVirtualAccountResponse.getBankResponseDesc()
+                                : "No response from bank")
+                        .format());
+                    paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
+                    throw new APIException(HttpStatus.BAD_REQUEST, paymentTopupWalletResponse);
+                }
 		                
 		                String newBankUId = createVirtualAccountResponse.getBankUID();
 		                topupReq.setWalletId(newBankUId);
@@ -792,24 +810,46 @@ public class WalletResource {
 
 		    // * create virtual account
 
-		    CreateVirtualAccountRequest createVirtualAccountRequest =
-		        populateCreateVirtualAccountRequest(createReq, bank, 0, oauthUser, source);
+    CreateVirtualAccountRequest createVirtualAccountRequest =
+        populateCreateVirtualAccountRequest(createReq, bank, 0, oauthUser, source);
 
-		    BankRequestContext bankRequestContext = new BankRequestContext();
-		    bankRequestContext.setTraceId(httpServletContext.getTraceId());
-		    Future<CreateVirtualAccountResponse> bankResponse =
-		        bankAPIServices.createVirtualAccount(bankRequestContext, createVirtualAccountRequest);
-		    CreateVirtualAccountResponse createVirtualAccountResponse = bankResponse.get();
+    BankRequestContext bankRequestContext = new BankRequestContext();
+    bankRequestContext.setTraceId(httpServletContext.getTraceId());
+    Future<CreateVirtualAccountResponse> bankResponse =
+        bankAPIServices.createVirtualAccount(bankRequestContext, createVirtualAccountRequest);
+    CreateVirtualAccountResponse createVirtualAccountResponse = null;
+    try {
+      createVirtualAccountResponse = bankResponse.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+          .message("Virtual account creation interrupted").format(), e);
+      walletUserInfo.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
+      throw new APIException(HttpStatus.BAD_REQUEST, walletUserInfo);
+    } catch (ExecutionException e) {
+      LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+          .message("Virtual account creation failed").data("reason", e.getMessage()).format(), e);
+      walletUserInfo.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
+      throw new APIException(HttpStatus.BAD_REQUEST, walletUserInfo);
+    }
 
-		    if (!createVirtualAccountResponse.getBankResponseCode()
-		        .equals(Integer.toString(DBConstants.BankTransactionsStatus.SUCCESS.value()))) {
+    String bankResponseCode =
+        createVirtualAccountResponse != null ? createVirtualAccountResponse.getBankResponseCode() : null;
+    if (!Integer.toString(DBConstants.BankTransactionsStatus.SUCCESS.value())
+        .equals(bankResponseCode)) {
 
-		      walletUserInfo.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
-		      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-		          .data("Reason", "rollback associated exception being handled").format());
-		      throw new APIException(HttpStatus.BAD_REQUEST, walletUserInfo);
-		      // return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(walletUserInfo);
-		    }
+      walletUserInfo.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
+      LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+          .message("createVirtualAccount failed").data("bankResponseCode", bankResponseCode)
+          .data("bankResponseDesc",
+              createVirtualAccountResponse != null ? createVirtualAccountResponse.getBankResponseDesc()
+                  : "No response from bank")
+          .format());
+      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+          .data("Reason", "rollback associated exception being handled").format());
+      throw new APIException(HttpStatus.BAD_REQUEST, walletUserInfo);
+      // return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(walletUserInfo);
+    }
 
 		    Map<String, Object> map = new HashMap<>();
 		    map.put("bank", bank);

@@ -357,11 +357,11 @@ public class TollMerchantResource {
 					.data("serialNumber",createReq.getVehicleList().get(0).getSerialNumber()).format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.TOLL_SERIAL_NUMBER_USED));
 		} else if(!epc.getIin().equals(walletBank.getIin())) {
-			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
 					.message(HeaderCode.IIN_FROM_TAG_ID_DOES_N0T_MATCH_PAYER_IIN.message())
 					.data("serialNumber",createReq.getVehicleList().get(0).getSerialNumber())
-					.data("iin", walletBank.getIin()).format());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.IIN_FROM_TAG_ID_DOES_N0T_MATCH_PAYER_IIN));
+					.data("tagIin", epc.getIin())
+					.data("payerIin", walletBank.getIin()).format());			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.IIN_FROM_TAG_ID_DOES_N0T_MATCH_PAYER_IIN));
 		}else if(!("VC"+ Integer.parseInt(epc.getCategory())).equalsIgnoreCase(createReq.getVehicleList().get(0).getCategory())) {
 			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 					.message(HeaderCode.EPC_CATEGORY_MISMATCH.message())
@@ -650,6 +650,20 @@ public class TollMerchantResource {
 
 		List<FeesAndDeposit> feesAndDeposits = (List<FeesAndDeposit>) objectLookUp.get("feesAndDeposits");
 		WalletUserInfo walletUserInfo = (WalletUserInfo) objectLookUp.get("walletUserInfo");
+		Merchant merchant = httpServletContext.getMerchant();
+		if (merchant == null && merchantUser != null) {
+			merchant = merchantDBService.getMerchant(merchantUser.getBankMerchantId());
+		}
+		if (merchant == null || CollectionUtils.isEmpty(feesAndDeposits) || walletUserInfo == null) {
+			removeVehicleLock((RLock) objectLookUp.get("vehicleNumberLock"));
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Failed to prepare add money request")
+					.data("merchantFound", merchant != null)
+					.data("hasFees", !CollectionUtils.isEmpty(feesAndDeposits))
+					.data("hasWalletUserInfo", walletUserInfo != null)
+					.format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
+		}
 		List<User> users = userDBService.getUsersByRoles(createReq.getMobileNo(),
 				Arrays.asList(UserRoles.CUSTOMER.value()), NumberUtils.INTEGER_ZERO);
 		User newUser = users.get(0);
@@ -659,13 +673,13 @@ public class TollMerchantResource {
 		addMoneyToWalletRequest
 				.setOrderId(createReq.getVehicleList().get(0).getRegistrationNo() + System.currentTimeMillis());
 		addMoneyToWalletRequest.setPartnerTransactionReferenceId(CoreUtils.generateDipcoinToMerchantReferenceNumber());
-		addMoneyToWalletRequest.setPartnerReferenceId(httpServletContext.getMerchant().getReferenceId());
+		addMoneyToWalletRequest.setPartnerReferenceId(merchant.getReferenceId());
 		addMoneyToWalletRequest.setRequestType(TransactionRequestType.CREATEOSTA.value());
 		addMoneyToWalletRequest.setPhonenum(createReq.getMobileNo());
 		addMoneyToWalletRequest.setWalletId(walletUserInfo.getWalletId());
 
 		ResponseEntity responseOauthAddMoneyWallet = oauth2WalletServiceResource.addMoneyToWallet(
-				addMoneyToWalletRequest, newUser, httpServletContext.getMerchant(), TransactionSource.OAUTH);
+				addMoneyToWalletRequest, newUser, merchant, TransactionSource.OAUTH);
 
 		if (HttpStatus.BAD_REQUEST.value() <= responseOauthAddMoneyWallet.getStatusCodeValue()) {
 			removeVehicleLock((RLock) objectLookUp.get("vehicleNumberLock"));

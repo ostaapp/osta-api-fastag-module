@@ -44,7 +44,6 @@ import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 //import com.dipcoin.db.services.model.Merchant;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 @Component("aPIUtils")
 public class APIUtils {
   private static final Logger LOG = LogManager.getLogger(APIUtils.class);

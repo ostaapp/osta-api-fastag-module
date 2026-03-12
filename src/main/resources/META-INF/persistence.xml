@@ -61,6 +61,8 @@
 			<class>com.dipcoin.db.services.model.RechargeServiceProvider</class>
 			<class>com.dipcoin.db.services.model.UserNotifications</class>
 			<class>com.dipcoin.db.services.model.UserState</class>
+			<class>com.dipcoin.virtualBank.services.model.VirtualAccount</class>
+			<class>com.dipcoin.virtualBank.services.model.VirtualAccountTransactions</class>
 			
 			<class>com.dipcoin.partner.db.services.model.Partner</class>
 			<class>com.dipcoin.partner.db.services.model.PartnerAccount</class>

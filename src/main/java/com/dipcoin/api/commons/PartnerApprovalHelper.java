@@ -20,7 +20,6 @@ import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.PartnerApprovalStatus;
 import com.dipcoin.api.resource.MerchantResource;
-import com.dipcoin.api.resource.NotificationResource;
 import com.dipcoin.api.resource.UserLoginResource;
 import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.commons.SmsClient;
@@ -73,9 +72,6 @@ public class PartnerApprovalHelper {
   private UserDBService userDBService;
 
   @Autowired
-  private EmailUtils emailUtils;
-
-  @Autowired
   private SmsClient smsClient;
 
   @Autowired
@@ -93,9 +89,6 @@ public class PartnerApprovalHelper {
   
   @Autowired
   private PartnerAccountDBService partnerAccountDBService;
-  
-  @Autowired
-  private NotificationResource notificationResource;
   
   /*
    * Add and set lead, form, doc, bank account, payment, integration

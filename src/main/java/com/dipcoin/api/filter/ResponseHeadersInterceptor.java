@@ -45,7 +45,7 @@ public class ResponseHeadersInterceptor implements HandlerInterceptor {
         return;
       }
 
-//      cacheControlInterceptor.intercept(request, response);
+      cacheControlInterceptor.intercept(request, response);
 
 //      if (path.toLowerCase().contains("swagger")) {
 //        swaggerInterceptor.intercept(request, response);

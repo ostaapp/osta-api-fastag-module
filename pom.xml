@@ -16,6 +16,8 @@
 	<properties>
 		<java.version>13</java.version>
 		<dipcoin.core.version>3.0.11</dipcoin.core.version>
+		<dipcoin.services.version>2.0.84-SNAPSHOT</dipcoin.services.version>
+		<partner.db.services.version>1.0.23-SNAPSHOT</partner.db.services.version>
 		<swagger.version>2.9.2</swagger.version>
 		<hibernate.version>5.4.32.Final</hibernate.version>
 		<log4j2.version>2.16.0</log4j2.version>
@@ -142,6 +144,32 @@
 		            <artifactId>xercesImpl</artifactId>
 		        </exclusion>
     
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>com.dipcoin</groupId>
+			<artifactId>dipcoin-bank-services</artifactId>
+			<version>${dipcoin.services.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.dipcoin</groupId>
+					<artifactId>dipcoin-virtualBank-services</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>com.dipcoin.partner</groupId>
+			<artifactId>partner-db-services</artifactId>
+			<version>${partner.db.services.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 
