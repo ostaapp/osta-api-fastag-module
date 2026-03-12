@@ -53,15 +53,15 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
-@Api(value = "/v1/bank/customer")
+@Api(value = "/v1/jwt/bank/customer")
 @RestController
-@RequestMapping(value = "/v1/bank/customer",  consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE,
+@RequestMapping(value = "/v1/jwt/bank/customer",  consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE,
         MediaType.ALL_VALUE},
     produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE,
         MediaType.ALL_VALUE})
 @CrossOrigin
 @Timed
-public class TollBankRequestHandler extends RequestHandler {
+public class TollBankRequestHandlerAuth extends RequestHandler {
 
   @Autowired
   private TollBankResource tollServiceBankResource;
@@ -85,10 +85,9 @@ public class TollBankRequestHandler extends RequestHandler {
   public ResponseEntity getTagsRejectedPendingCounts(
       @ApiParam(value = "BankReferenceId", required = true) @RequestParam(value = "bankReferenceId",
           required = true) String bankReferenceId,
-      @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
-	  
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws Exception, APIException {
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
 		if (bank == null) {
@@ -119,8 +118,8 @@ public class TollBankRequestHandler extends RequestHandler {
 			@ApiParam(value = "serialNumber", required = false) @RequestParam(value = "serialNumber", required = false) String serialNumber,
 			@ApiParam(value = "Start", required = false, defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
 			@ApiParam(value = "Count", required = false, defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,
-			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			@ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
 			throws Exception, APIException {
 	  
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
@@ -149,9 +148,9 @@ public class TollBankRequestHandler extends RequestHandler {
           value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
       @ApiParam(value = "Get Toll Customer info based on Toll customer id ",
           required = false) @QueryParam(value = "docPath") final String docPath,
-      @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws Exception, APIException {
 	  
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
@@ -170,9 +169,9 @@ public class TollBankRequestHandler extends RequestHandler {
   public ResponseEntity getTollTagCharges(
       @ApiParam(value = "Toll Tag Charges",
           required = true) @PathVariable("ttid") final String encryptedTTID,
-      @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws Exception, APIException {
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
 		if (bank == null) {
@@ -193,9 +192,9 @@ public class TollBankRequestHandler extends RequestHandler {
           required = true) @RequestBody final TollTagRequest updateReq,
       @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
           value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-      @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws Exception, APIException {
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
 		if (bank == null) {
@@ -212,9 +211,8 @@ public class TollBankRequestHandler extends RequestHandler {
  		 @ApiParam(value = "SerialNumber",
           required = true) @RequestParam(value = "serialNumber",
           required = true) final String serialNumber,
- 		@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
+ 		 @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+ 			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)throws Exception, APIException {
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
 		if (bank == null) {
@@ -238,9 +236,9 @@ public class TollBankRequestHandler extends RequestHandler {
       required = false) @RequestParam(value ="cardId",defaultValue = StringUtils.EMPTY) final String cardId,
       @ApiParam(value = "Misc Charges", required = false,
       defaultValue = "true") @RequestParam(value = "miscCharges", defaultValue = "true") Boolean miscCharges,
-      @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws Exception, APIException {
 	  User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
 		if (bank == null) {
@@ -275,9 +273,9 @@ public class TollBankRequestHandler extends RequestHandler {
          required = false) @RequestParam(value = "bankReferenceId", required=true) final String bankReferenceId,
      @ApiParam(value = "regType",
      required = false) @RequestParam(value = "regType", required=true) final Integer regType,
-     @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-		@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-		throws Exception, APIException {
+     @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+     throws Exception, APIException {
 	 User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
 		if (bank == null) {
@@ -310,9 +308,9 @@ public ResponseEntity reqVehicleDetails(
         required = false) @RequestParam(value = "lastFiveDigitsOfEngineNo", required = false) final String lastFiveDigitsOfEngineNo,
     @ApiParam(value = "bankReferenceId",
     required = true) @RequestParam(value = "bankReferenceId") final String bankReferenceId,
-    @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-	@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-	throws Exception, APIException {
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+    throws Exception, APIException {
 	User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 	Bank bank = bankDBService.getBank(user.getBankMerchantId());
 	if (bank == null) {
@@ -377,9 +375,9 @@ public ResponseEntity tollVehicleVerification(
    @ApiParam(value = "vehicle verification from netc based on vehicle serialNumber",
        required = false) @RequestParam(value = "serialNumber",
            required = false) final String serialNumber,   
-   @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-	@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-	throws Exception, APIException {
+   @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+   throws Exception, APIException {
 	User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 	Bank bank = bankDBService.getBank(user.getBankMerchantId());
 	if (bank == null) {
@@ -408,9 +406,9 @@ public ResponseEntity getFastagWithVin(
         defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,  
     @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
             value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-    @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-	@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-	throws Exception, APIException {
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+    throws Exception, APIException {
 	User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 	Bank bank = bankDBService.getBank(user.getBankMerchantId());
 	if (bank == null) {
@@ -437,9 +435,9 @@ public ResponseEntity getTagRecharge(
         defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,
     @ApiParam(value = "Count", required = false, defaultValue = "100") @RequestParam(
         value = "vehicleNumber", required = false) String vehicleNumber,
-    @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-	@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-	throws Exception, APIException {
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+	@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+throws Exception, APIException {
 	User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 	Bank bank = bankDBService.getBank(user.getBankMerchantId());
 	if (bank == null) {
@@ -473,9 +471,9 @@ public ResponseEntity bankTollTransactions(
         defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
     @ApiParam(value = "Count", required = false,
         defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,
-    @ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-	@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-	throws Exception, APIException {
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+	@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+throws Exception, APIException {
 	User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
 	Bank bank = bankDBService.getBank(user.getBankMerchantId());
 	if (bank == null) {

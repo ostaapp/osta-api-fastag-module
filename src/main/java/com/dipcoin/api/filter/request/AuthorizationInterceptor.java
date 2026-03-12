@@ -13,7 +13,9 @@ import com.dipcoin.client.UserServiceClient;
 //import com.dipcoin.api.resource.UserLoginResource;
 //import com.dipcoin.api.resource.UserLoginSession;
 import com.dipcoin.commons.LogFormatter;
+import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.UserDBService;
+import com.dipcoin.db.services.model.Bank;
 //import com.dipcoin.db.services.model.Bank;
 //import com.dipcoin.db.services.model.CustomerAccount;
 //import com.dipcoin.db.services.model.Merchant;
@@ -48,6 +50,8 @@ public class AuthorizationInterceptor implements RequestInterceptor {
   private SystemResource systemResource;
   @Autowired
   private HttpServletContext httpServletContext;
+  @Autowired
+  private BankDBService bankDBService;
   @Autowired
   private JwtDecoder jwtDecoder;
   // @Autowired
@@ -165,19 +169,51 @@ public class AuthorizationInterceptor implements RequestInterceptor {
 
         Object bankMerchantIdClaim = jwt.getClaim("bankMerchantId");
         if (bankMerchantIdClaim instanceof Number) {
-          user.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
+            user.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
         }
 
         // Fetch full user from database to ensure status and roles are current
         User fullUser = userDBService.getUser(email, phone);
+
         if (fullUser == null) {
-          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
-              .message("User from JWT not found in database").data("UserId", user.getId()).format());
-          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
-              .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED).toString()));
+            log.warn(LogFormatter.instance(httpServletContext.getTraceId())
+                .message("User from JWT not found in database")
+                .data("UserId", user.getId())
+                .format());
+
+            return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
+                .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED).toString()));
         }
 
+        // preserve bankMerchantId from JWT
+        if (bankMerchantIdClaim instanceof Number) {
+            fullUser.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
+        }
+
+        // preserve role from JWT
+        Object roleClaim = jwt.getClaim("role");
+        if (roleClaim instanceof String) {
+            fullUser.setRole((String) roleClaim);
+        }
+
+        // set user in context
         httpServletContext.setUser(fullUser);
+
+        // set bank in context
+        if (fullUser.getBankMerchantId() > 0) {
+
+            Bank bank = bankDBService.getBank(fullUser.getBankMerchantId());
+
+            if (bank != null) {
+                httpServletContext.setBank(bank);
+
+                log.info(LogFormatter.instance(httpServletContext.getTraceId())
+                    .message("Bank set in context")
+                    .data("BankId", bank.getId())
+                    .data("BankIIN", bank.getIin())
+                    .format());
+            }
+        }
         log.debug(LogFormatter.instance(httpServletContext.getTraceId())
             .message("JWT validated and user set in context").data("UserId", fullUser.getId()).format());
 

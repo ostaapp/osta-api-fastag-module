@@ -1831,12 +1831,21 @@ public class TollBankResource {
 	public ResponseEntity vehicleVerification(User user, String vehicleRegistrationNo, String tagId, String tid,
 			Integer regType, String bankReferenceId) {
 		// Check for the Request form bank
+		LOG.info("VehicleVerification API called");
+		LOG.info("UserId: {}", user.getId());
+		LOG.info("UserRole: {}", user.getRole());
+		LOG.info("UserStatus: {}", user.getStatus());
 		TollTagResponse tollTagResponse = new TollTagResponse();
+		LOG.info("UserRole: {}", user.getRole());
+		LOG.info("Allowed Bank Roles: {}", UserRoles.bankUserRoles());
+		LOG.info("Allowed Merchant Roles: {}", UserRoles.merchantUserRoles());
+
 		if (!(UserRoles.bankUserRoles().contains(user.getRole())
 				|| UserRoles.merchantUserRoles().contains(user.getRole()))) {
+			 LOG.warn("Unauthorized role trying vehicleVerification: {}", user.getRole());
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
 		}
-
+		
 		if (!this.userDBService.isActive(user)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
