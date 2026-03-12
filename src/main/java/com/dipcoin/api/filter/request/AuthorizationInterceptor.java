@@ -13,9 +13,7 @@ import com.dipcoin.client.UserServiceClient;
 //import com.dipcoin.api.resource.UserLoginResource;
 //import com.dipcoin.api.resource.UserLoginSession;
 import com.dipcoin.commons.LogFormatter;
-import com.dipcoin.db.services.BankDBService;
-import com.dipcoin.db.services.model.Bank;
-//import com.dipcoin.db.services.UserDBService;
+import com.dipcoin.db.services.UserDBService;
 //import com.dipcoin.db.services.model.Bank;
 //import com.dipcoin.db.services.model.CustomerAccount;
 //import com.dipcoin.db.services.model.Merchant;
@@ -44,16 +42,14 @@ public class AuthorizationInterceptor implements RequestInterceptor {
   //
   // @Autowired
   // private UserLoginSession userLoginSession;
-  // @Autowired
-  // private UserDBService userDBService;
+  @Autowired
+  private UserDBService userDBService;
   @Autowired
   private SystemResource systemResource;
   @Autowired
   private HttpServletContext httpServletContext;
   @Autowired
   private JwtDecoder jwtDecoder;
-  @Autowired
-  private BankDBService bankDBService;
   // @Autowired
   // private ApplicationProperties applicationProperties;
   private static final Map<String, List<String>> INSECURE_PATHS = new HashMap<>();
@@ -172,17 +168,18 @@ public class AuthorizationInterceptor implements RequestInterceptor {
           user.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
         }
 
-        httpServletContext.setUser(user);
-        
-     // Fetch Bank entity for JWT bank users
-        if (user.getBankMerchantId() > 0) {
-            Bank bank = bankDBService.getBank(user.getBankMerchantId());
-            if (bank != null) {
-                httpServletContext.setBank(bank);
-            }
+        // Fetch full user from database to ensure status and roles are current
+        User fullUser = userDBService.getUser(email, phone);
+        if (fullUser == null) {
+          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
+              .message("User from JWT not found in database").data("UserId", user.getId()).format());
+          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
+              .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED).toString()));
         }
+
+        httpServletContext.setUser(fullUser);
         log.debug(LogFormatter.instance(httpServletContext.getTraceId())
-            .message("JWT validated and user set in context").data("UserId", user.getId()).format());
+            .message("JWT validated and user set in context").data("UserId", fullUser.getId()).format());
 
         log.info(LogFormatter.instance(httpServletContext.getTraceId())
             .message("JWT Token Details Exposed")
