@@ -7,15 +7,16 @@ import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import com.dipcoin.api.utils.UserMappingHelper;
 import com.dipcoin.client.UserServiceClient;
 //import com.dipcoin.api.resource.UserLoginResource;
 //import com.dipcoin.api.resource.UserLoginSession;
 import com.dipcoin.commons.LogFormatter;
+import com.dipcoin.db.services.BankDBService;
+import com.dipcoin.db.services.MerchantDBService;
 import com.dipcoin.db.services.UserDBService;
-//import com.dipcoin.db.services.model.Bank;
+import com.dipcoin.db.services.model.Bank;
 //import com.dipcoin.db.services.model.CustomerAccount;
-//import com.dipcoin.db.services.model.Merchant;
+import com.dipcoin.db.services.model.Merchant;
 import com.dipcoin.db.services.model.User;
 //import com.dipcoin.api.config.ApplicationProperties;
 import java.util.Arrays;
@@ -43,6 +44,10 @@ public class AuthorizationInterceptor implements RequestInterceptor {
   // private UserLoginSession userLoginSession;
   @Autowired
   private UserDBService userDBService;
+  @Autowired
+  private MerchantDBService merchantDBService;
+  @Autowired
+  private BankDBService bankDBService;
   @Autowired
   private HttpServletContext httpServletContext;
   @Autowired
@@ -165,8 +170,16 @@ public class AuthorizationInterceptor implements RequestInterceptor {
           user.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
         }
 
-        // Fetch full user from database to ensure status and roles are current
-        User fullUser = userDBService.getUser(email, phone);
+        // Load the exact user row from the subject id first. Falling back to email/phone can
+        // select the wrong user when multiple roles share the same contact details.
+        User fullUser = null;
+        List<User> matchedUsers = userDBService.getUsersByIds(Arrays.asList(user.getId()));
+        if (matchedUsers != null && !matchedUsers.isEmpty()) {
+          fullUser = matchedUsers.get(0);
+        }
+        if (fullUser == null) {
+          fullUser = userDBService.getUser(email, phone);
+        }
         if (fullUser == null) {
           log.warn(LogFormatter.instance(httpServletContext.getTraceId())
               .message("User from JWT not found in database").data("UserId", user.getId()).format());
@@ -175,16 +188,56 @@ public class AuthorizationInterceptor implements RequestInterceptor {
         }
 
         httpServletContext.setUser(fullUser);
+
+        Merchant merchant = null;
+        Bank bank = null;
+        if (this.userDBService.merchantRepresentative(fullUser)) {
+          merchant = this.merchantDBService.getMerchant(fullUser.getBankMerchantId());
+          if (merchant == null) {
+            merchant = this.merchantDBService.getMerchantByUser(fullUser.getId());
+          }
+          if (merchant != null) {
+            httpServletContext.setMerchant(merchant);
+          }
+        } else if (this.userDBService.bankRepresentative(fullUser)) {
+          bank = this.bankDBService.getBank(fullUser.getBankMerchantId());
+          if (bank != null) {
+            httpServletContext.setBank(bank);
+          }
+        }
+
+        if (this.userDBService.merchantRepresentative(fullUser) && merchant == null) {
+          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
+              .message("JWT user resolved but merchant context is missing")
+              .data("UserId", fullUser.getId())
+              .data("BankMerchantId", fullUser.getBankMerchantId())
+              .format());
+          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
+              .body(APIResponse.error(HeaderCode.MERCHANT_UNAUTHORIZED).toString()));
+        } else if (this.userDBService.bankRepresentative(fullUser) && bank == null) {
+          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
+              .message("JWT user resolved but bank context is missing")
+              .data("UserId", fullUser.getId())
+              .data("BankMerchantId", fullUser.getBankMerchantId())
+              .format());
+          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
+              .body(APIResponse.error(HeaderCode.BANK_UNAUTHORIZED).toString()));
+        }
+
         log.debug(LogFormatter.instance(httpServletContext.getTraceId())
-            .message("JWT validated and user set in context").data("UserId", fullUser.getId()).format());
+            .message("JWT validated and user set in context")
+            .data("UserId", fullUser.getId())
+            .data("MerchantId", merchant != null ? merchant.getId() : null)
+            .data("BankId", bank != null ? bank.getId() : null)
+            .format());
 
         log.info(LogFormatter.instance(httpServletContext.getTraceId())
             .message("JWT Token Details Exposed")
-            .data("UserId", user.getId())
-            .data("Phone", user.getPhone())
-            .data("Role", user.getRole())
-            .data("Email", user.getEmail())
-            .data("BankMerchantId", user.getBankMerchantId())
+            .data("UserId", fullUser.getId())
+            .data("Phone", fullUser.getPhone())
+            .data("Role", fullUser.getRole())
+            .data("Email", fullUser.getEmail())
+            .data("BankMerchantId", fullUser.getBankMerchantId())
             .format());
 
         // Validate scopes for JWT

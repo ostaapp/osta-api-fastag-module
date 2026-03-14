@@ -26,6 +26,7 @@ public abstract class DipcoinRequest extends LinkedHashMap<String, String> {
     public static String ATTEMPT = "attempt";
     public static final String USER_ID = "userId";
     public static final String CARD_ID = "cardId";
+    public static final String ACCOUNT_ID = "accountId";
     // Header fields
     public static String HEADER_REQUESTUUID = "headerRequestUUID";
     public static String HEADER_SERVICEREQUESTID = "ServiceRequestId";
@@ -117,6 +118,14 @@ public abstract class DipcoinRequest extends LinkedHashMap<String, String> {
 
   public void setCardId(String cardId) {
     this.put(Fields.CARD_ID, cardId);
+  }
+
+  public String getAccountId() {
+    return this.get(Fields.ACCOUNT_ID);
+  }
+
+  public void setAccountId(String accountId) {
+    this.put(Fields.ACCOUNT_ID, accountId);
   }
   
   final public void setHeaderRequestUUID(String headerRequestUUID) {

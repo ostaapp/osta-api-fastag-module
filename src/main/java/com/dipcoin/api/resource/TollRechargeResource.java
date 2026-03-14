@@ -272,13 +272,31 @@ public class TollRechargeResource {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
 		}
 
-		CustomerAccount customerAccount = customerDBService.asyncGetAccount(user.getId(), rechargeReq.getCardId())
-				.get();
+		CustomerAccount customerAccount = null;
+		if (rechargeReq.getCustomerAccountId() != null
+				&& rechargeReq.getCustomerAccountId() > NumberUtils.INTEGER_ZERO) {
+			customerAccount = customerDBService.getAccountById(rechargeReq.getCustomerAccountId());
+			if (customerAccount != null && customerAccount.getUser() != null
+					&& customerAccount.getUser().getId() != user.getId()) {
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+			}
+		}
+
+		if (customerAccount == null) {
+			customerAccount = customerDBService.asyncGetAccount(user.getId(), rechargeReq.getCardId()).get();
+		}
 
 		if (customerAccount == null) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.ACCOUNT_NUMBER_NOT_CORRECT));
 		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Resolved recharge customer account")
+				.data("CustomerAccountId", customerAccount.getId()).data("CardId", rechargeReq.getCardId())
+				.data("RequestedCustomerAccountId", rechargeReq.getCustomerAccountId())
+				.data("BankUId", customerAccount.getBankUId()).format());
+		rechargeReq.setCustomerAccountId(customerAccount.getId());
+		rechargeReq.setCardId(customerAccount.getUserCardId());
 
 		if ((StringUtils.isEmpty(rechargeReq.getAuthorizationPin())
 				&& !rechargeReq.getAuthorizationPin().equalsIgnoreCase(APIConstants.PIN))
@@ -413,6 +431,7 @@ public class TollRechargeResource {
 
 		// Adding Request To create Osta.
 		createReq.setEncryptDipcoin(false);
+		createReq.setAccountId(customerAccount.getId());
 		createReq.setCardId(rechargeReq.getCardId());
 		createReq.setCurrency(rechargeReq.getCurrency());
 		createReq.setAuthorizationPin(rechargeReq.getAuthorizationPin());
@@ -734,6 +753,7 @@ public class TollRechargeResource {
 			CustomerDipcoinRequest createReq = new CustomerDipcoinRequest();
 			createReq.setEncryptDipcoin(false);
 			createReq.setAmount(dipcoin.getAmount());
+			createReq.setAccountId(rechargeReq.getCustomerAccountId());
 			createReq.setCardId(rechargeReq.getCardId());
 			createReq.setCurrency(rechargeReq.getCurrency());
 			createReq.setAuthorizationPin(rechargeReq.getAuthorizationPin());

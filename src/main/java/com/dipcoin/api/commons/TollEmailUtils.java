@@ -22,8 +22,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.ui.freemarker.FreeMarkerTemplateUtils;
 import com.dipcoin.api.config.ApplicationProperties;
 import com.dipcoin.api.filter.HttpServletContext;
-import com.dipcoin.api.model.CustomerDipcoinResponse;
-import com.dipcoin.api.model.UserComplaintRequest;
 import com.dipcoin.commons.CoreUtils;
 import com.dipcoin.commons.EmailClient;
 import com.dipcoin.commons.LogFormatter;

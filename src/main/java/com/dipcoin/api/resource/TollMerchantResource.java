@@ -77,6 +77,7 @@ import com.dipcoin.api.model.BanksResponse;
 import com.dipcoin.api.model.CreateUserWalletRequest;
 import com.dipcoin.api.model.EncryptionResponse;
 import com.dipcoin.api.model.Pagination;
+import com.dipcoin.api.model.PaymentTopupWalletResponse;
 import com.dipcoin.api.model.TollRegistrationRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.model.TollTagCountResponse;
@@ -147,6 +148,9 @@ public class TollMerchantResource {
 
 	@Autowired
 	private UserDBService userDBService;
+
+	@Autowired
+	private CustomerDBService customerDBService;
 
 	@Autowired
 	private TollDBService tollDBService;
@@ -508,13 +512,20 @@ public class TollMerchantResource {
 		WalletUserInfo walletUserInfo = (WalletUserInfo) responseOauthWallet.getBody();
 
 		
-		CustomerAccount customerAccount = dipcoinResource.getAccount(newUser.getId(), walletUserInfo.getCardId());
+		CustomerAccount customerAccount = resolveWalletCustomerAccount(newUser.getId(),
+				walletUserInfo != null ? walletUserInfo.getWalletId() : null,
+				walletUserInfo != null ? walletUserInfo.getCardId() : null);
 
 		if (customerAccount == null) {
 			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 					.message(HeaderCode.FAILED_FETCHING_CUSTOMER_ACCOUNT.message()).format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.FAILED_FETCHING_CUSTOMER_ACCOUNT));
+		}
+
+		if (walletUserInfo != null) {
+			walletUserInfo.setWalletId(customerAccount.getBankUId());
+			walletUserInfo.setCardId(customerAccount.getUserCardId());
 		}
 
 		List<FeesAndDeposit> feesAndDeposits = feesAndDepositDBService.findByBankIdAndChargeCategory(
@@ -591,10 +602,20 @@ public class TollMerchantResource {
 		Map<String, Object> objectLookUp = new HashMap<>();
 		objectLookUp.put("feesAndDeposits", feesAndDeposits);
 		objectLookUp.put("customerAccount", customerAccount);		
+		objectLookUp.put("customerUserId", newUser.getId());
 		objectLookUp.put("walletBank", walletBank);
 		objectLookUp.put("walletUserInfo", walletUserInfo);
+		objectLookUp.put("walletId", walletUserInfo != null ? walletUserInfo.getWalletId() : null);
+		objectLookUp.put("walletCardId", walletUserInfo != null ? walletUserInfo.getCardId() : null);
 		objectLookUp.put("vehicleNumberLock", vehicleNumberLock);
 
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message(String.format(
+						"Prepared toll registration context customerAccountId=%s walletCardId=%s walletIdPresent=%s",
+						customerAccount != null ? customerAccount.getId() : null,
+						walletUserInfo != null ? walletUserInfo.getCardId() : null,
+						walletUserInfo != null && StringUtils.isNotBlank(walletUserInfo.getWalletId())))
+				.format());
 		LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll Created").format());
 
 		response.addHeaderCode(HeaderCode.TOLL_REGISTRATION_BY_CUSTOMER_SUCCESSFULL);
@@ -649,18 +670,22 @@ public class TollMerchantResource {
 		final TollRegistrationRequest createReq = new ObjectMapper().readValue(request, TollRegistrationRequest.class);
 
 		List<FeesAndDeposit> feesAndDeposits = (List<FeesAndDeposit>) objectLookUp.get("feesAndDeposits");
-		WalletUserInfo walletUserInfo = (WalletUserInfo) objectLookUp.get("walletUserInfo");
-		Merchant merchant = httpServletContext.getMerchant();
-		if (merchant == null && merchantUser != null) {
-			merchant = merchantDBService.getMerchant(merchantUser.getBankMerchantId());
-		}
-		if (merchant == null || CollectionUtils.isEmpty(feesAndDeposits) || walletUserInfo == null) {
+		WalletUserInfo walletUserInfo = resolveWalletUserInfo(objectLookUp);
+		String walletId = walletUserInfo != null ? walletUserInfo.getWalletId() : null;
+		Merchant merchant = resolveMerchant(merchantUser);
+		if (merchant == null || CollectionUtils.isEmpty(feesAndDeposits) || StringUtils.isBlank(walletId)) {
 			removeVehicleLock((RLock) objectLookUp.get("vehicleNumberLock"));
 			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-					.message("Failed to prepare add money request")
+					.message(String.format(
+							"Failed to prepare add money request merchantFound=%s hasFees=%s hasWalletUserInfo=%s hasWalletId=%s",
+							merchant != null, !CollectionUtils.isEmpty(feesAndDeposits), walletUserInfo != null,
+							StringUtils.isNotBlank(walletId)))
 					.data("merchantFound", merchant != null)
 					.data("hasFees", !CollectionUtils.isEmpty(feesAndDeposits))
 					.data("hasWalletUserInfo", walletUserInfo != null)
+					.data("hasWalletId", StringUtils.isNotBlank(walletId))
+					.data("merchantUserId", merchantUser != null ? merchantUser.getId() : null)
+					.data("merchantBankMerchantId", merchantUser != null ? merchantUser.getBankMerchantId() : null)
 					.format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
 		}
@@ -676,7 +701,7 @@ public class TollMerchantResource {
 		addMoneyToWalletRequest.setPartnerReferenceId(merchant.getReferenceId());
 		addMoneyToWalletRequest.setRequestType(TransactionRequestType.CREATEOSTA.value());
 		addMoneyToWalletRequest.setPhonenum(createReq.getMobileNo());
-		addMoneyToWalletRequest.setWalletId(walletUserInfo.getWalletId());
+		addMoneyToWalletRequest.setWalletId(walletId);
 
 		ResponseEntity responseOauthAddMoneyWallet = oauth2WalletServiceResource.addMoneyToWallet(
 				addMoneyToWalletRequest, newUser, merchant, TransactionSource.OAUTH);
@@ -689,20 +714,182 @@ public class TollMerchantResource {
 			return responseOauthAddMoneyWallet;
 		}
 
+		if (responseOauthAddMoneyWallet.getBody() instanceof PaymentTopupWalletResponse) {
+			PaymentTopupWalletResponse topupWalletResponse =
+					(PaymentTopupWalletResponse) responseOauthAddMoneyWallet.getBody();
+			if (StringUtils.isNotBlank(topupWalletResponse.getWalletId())) {
+				CustomerAccount fundedWalletAccount = customerDBService.getAccount(topupWalletResponse.getWalletId());
+				if (fundedWalletAccount != null) {
+					WalletUserInfo fundedWalletUserInfo = (WalletUserInfo) objectLookUp.get("walletUserInfo");
+					if (fundedWalletUserInfo == null) {
+						fundedWalletUserInfo = new WalletUserInfo();
+					}
+					fundedWalletUserInfo.setWalletId(fundedWalletAccount.getBankUId());
+					fundedWalletUserInfo.setCardId(fundedWalletAccount.getUserCardId());
+					objectLookUp.put("walletUserInfo", fundedWalletUserInfo);
+					objectLookUp.put("customerAccount", fundedWalletAccount);
+					objectLookUp.put("walletId", fundedWalletAccount.getBankUId());
+					objectLookUp.put("walletCardId", fundedWalletAccount.getUserCardId());
+					LOG.info("FASTAG refreshed wallet context from topup response walletId:"
+							+ topupWalletResponse.getWalletId() + " customerAccountId:" + fundedWalletAccount.getId()
+							+ " walletCardId:" + fundedWalletAccount.getUserCardId() + " walletBankUId:"
+							+ fundedWalletAccount.getBankUId());
+				} else {
+					LOG.info("FASTAG topup response walletId did not resolve to customer account walletId:"
+							+ topupWalletResponse.getWalletId() + " customerUserId:" + newUser.getId());
+				}
+			}
+		}
+
+		CustomerAccount walletCustomerAccount = resolveWalletCustomerAccount(objectLookUp, newUser.getId());
+		if (walletCustomerAccount != null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Updated toll wallet context after add money")
+					.data("customerAccountId", walletCustomerAccount.getId())
+					.data("walletCardId", walletCustomerAccount.getUserCardId())
+					.data("walletBankUId", walletCustomerAccount.getBankUId()).format());
+			LOG.info("FASTAG wallet context after add money customerAccountId:"
+					+ walletCustomerAccount.getId() + " walletCardId:" + walletCustomerAccount.getUserCardId()
+					+ " walletBankUId:" + walletCustomerAccount.getBankUId() + " customerUserId:" + newUser.getId());
+		}
+
 		TollRegistrationResponse response = new TollRegistrationResponse();
 		response.addHeaderCode(HeaderCode.TOLL_REGISTRATION_BY_CUSTOMER_SUCCESSFULL);
 		return ResponseEntity.ok(response);
 
 	}
 
+	private WalletUserInfo resolveWalletUserInfo(Map<String, Object> objectLookUp) {
+		WalletUserInfo walletUserInfo = (WalletUserInfo) objectLookUp.get("walletUserInfo");
+		if (walletUserInfo != null && StringUtils.isNotBlank(walletUserInfo.getWalletId())) {
+			return walletUserInfo;
+		}
+
+		String walletId = (String) objectLookUp.get("walletId");
+		Integer walletCardId = (Integer) objectLookUp.get("walletCardId");
+		CustomerAccount customerAccount = (CustomerAccount) objectLookUp.get("customerAccount");
+
+		if (StringUtils.isBlank(walletId) && customerAccount != null) {
+			walletId = customerAccount.getBankUId();
+			if (walletCardId == null) {
+				walletCardId = customerAccount.getUserCardId();
+			}
+		}
+
+		if (StringUtils.isBlank(walletId) && walletCardId != null) {
+			Integer customerUserId = (Integer) objectLookUp.get("customerUserId");
+			if (customerUserId != null) {
+				CustomerAccount persistedCustomerAccount = dipcoinResource.getAccount(customerUserId, walletCardId);
+				if (persistedCustomerAccount != null) {
+					objectLookUp.put("customerAccount", persistedCustomerAccount);
+					walletId = persistedCustomerAccount.getBankUId();
+					walletCardId = persistedCustomerAccount.getUserCardId();
+				}
+			}
+		}
+
+		if (StringUtils.isBlank(walletId)) {
+			return walletUserInfo;
+		}
+
+		WalletUserInfo resolvedWalletUserInfo = walletUserInfo != null ? walletUserInfo : new WalletUserInfo();
+		resolvedWalletUserInfo.setWalletId(walletId);
+		resolvedWalletUserInfo.setCardId(walletCardId);
+		objectLookUp.put("walletUserInfo", resolvedWalletUserInfo);
+		objectLookUp.put("walletId", walletId);
+		objectLookUp.put("walletCardId", walletCardId);
+		return resolvedWalletUserInfo;
+	}
+
+	private CustomerAccount resolveWalletCustomerAccount(Map<String, Object> objectLookUp, Integer customerUserId) {
+		WalletUserInfo walletUserInfo = resolveWalletUserInfo(objectLookUp);
+		CustomerAccount customerAccount = resolveWalletCustomerAccount(customerUserId,
+				walletUserInfo != null ? walletUserInfo.getWalletId() : (String) objectLookUp.get("walletId"),
+				walletUserInfo != null ? walletUserInfo.getCardId() : (Integer) objectLookUp.get("walletCardId"));
+
+		if (customerAccount == null) {
+			return null;
+		}
+
+		objectLookUp.put("customerAccount", customerAccount);
+		objectLookUp.put("walletId", customerAccount.getBankUId());
+		objectLookUp.put("walletCardId", customerAccount.getUserCardId());
+
+		WalletUserInfo resolvedWalletUserInfo = walletUserInfo != null ? walletUserInfo : new WalletUserInfo();
+		resolvedWalletUserInfo.setWalletId(customerAccount.getBankUId());
+		resolvedWalletUserInfo.setCardId(customerAccount.getUserCardId());
+		objectLookUp.put("walletUserInfo", resolvedWalletUserInfo);
+
+		return customerAccount;
+	}
+
+	private CustomerAccount resolveWalletCustomerAccount(Integer customerUserId, String walletId, Integer walletCardId) {
+		CustomerAccount customerAccount = null;
+
+		if (StringUtils.isNotBlank(walletId)) {
+			customerAccount = customerDBService.getAccount(walletId);
+		}
+
+		if (customerAccount == null && customerUserId != null && walletCardId != null) {
+			customerAccount = dipcoinResource.getAccount(customerUserId, walletCardId);
+		}
+
+		return customerAccount;
+	}
+
+	private Merchant resolveMerchant(User merchantUser) {
+		Merchant merchant = httpServletContext.getMerchant();
+		User resolvedMerchantUser = merchantUser;
+
+		if (resolvedMerchantUser != null) {
+			List<User> users = userDBService.getUsersByIds(Arrays.asList(resolvedMerchantUser.getId()));
+			if (CollectionUtils.isNotEmpty(users)) {
+				resolvedMerchantUser = users.get(0);
+			}
+		}
+
+		if (merchant == null && resolvedMerchantUser != null) {
+			merchant = merchantDBService.getMerchant(resolvedMerchantUser.getBankMerchantId());
+			if (merchant == null) {
+				merchant = merchantDBService.getMerchantByUser(resolvedMerchantUser.getId());
+			}
+			if (merchant != null) {
+				httpServletContext.setMerchant(merchant);
+			}
+		}
+
+		return merchant;
+	}
+
 	public ResponseEntity createOsta(User merchantUser, final MultipartFile[] rcDoc, final MultipartFile idProof,
 			final String request, Map<String, Object> objectLookUp) throws Exception, APIException {
 		final TollRegistrationRequest createReq = new ObjectMapper().readValue(request, TollRegistrationRequest.class);
 		List<FeesAndDeposit> feesAndDeposits = (List<FeesAndDeposit>) objectLookUp.get("feesAndDeposits");
-		CustomerAccount customerAccount = (CustomerAccount) objectLookUp.get("customerAccount");
 		List<User> users = userDBService.getUsersByRoles(createReq.getMobileNo(),
 				Arrays.asList(UserRoles.CUSTOMER.value()), NumberUtils.INTEGER_ZERO);
 		User newUser = users.get(0);
+		CustomerAccount customerAccount = resolveWalletCustomerAccount(objectLookUp, newUser.getId());
+		if (customerAccount == null) {
+			customerAccount = (CustomerAccount) objectLookUp.get("customerAccount");
+		}
+		if (customerAccount == null) {
+			removeVehicleLock((RLock) objectLookUp.get("vehicleNumberLock"));
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Failed to resolve wallet customer account for OSTA creation")
+					.data("customerUserId", newUser.getId())
+					.data("walletId", objectLookUp.get("walletId"))
+					.data("walletCardId", objectLookUp.get("walletCardId")).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Creating OSTA using resolved wallet customer account")
+				.data("customerAccountId", customerAccount.getId())
+				.data("walletCardId", customerAccount.getUserCardId())
+				.data("walletBankUId", customerAccount.getBankUId()).format());
+		LOG.info("FASTAG create OSTA using wallet customerAccountId:" + customerAccount.getId() + " walletCardId:"
+				+ customerAccount.getUserCardId() + " walletBankUId:" + customerAccount.getBankUId()
+				+ " customerUserId:" + newUser.getId());
 		createReq.setAuthorizationPin(APIConstants.PIN);
 		createReq.setMiscCharges(false);
 

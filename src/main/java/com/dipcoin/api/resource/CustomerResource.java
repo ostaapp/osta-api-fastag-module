@@ -314,14 +314,12 @@ public class CustomerResource {
 			CustomerAccount account = customerAccount.next();
 
 			if (CustomerAccountMethodType.WALLET_INB.value() == account.getTypeOfMethod()) {
-
-				existingAccounts.remove(account);
+				customerAccount.remove();
 
 				if (account.getIsPrimary() == BooleanStatus.YES.value()) {
 					account.setIsPrimary(BooleanStatus.NO.value());
 					this.customerDBService.updateAccount(account);
 				}
-				break;
 			}
 		}
 
@@ -536,15 +534,6 @@ public class CustomerResource {
 		if (StringUtils.isNoneBlank(walletBankReferenceId)) {
 			Bank walletReferenceId = bankDBService.getBank(walletBankReferenceId);
 			cAccount.setWalletBankId(walletReferenceId != null ? walletReferenceId.getId() : NumberUtils.INTEGER_ZERO);
-
-			// For WALLET_INB accounts, set the bankUId from the walletBankReferenceId
-			// parameter
-			// This is the virtual account's bankUId that was just created
-			if (addReq.getTypeOfMethod() != null
-					&& addReq.getTypeOfMethod() == CustomerAccountMethodType.WALLET_INB.value()) {
-				cAccount.setBankUId(walletBankReferenceId);
-				LOG.info("Set bankUId for WALLET_INB account: " + walletBankReferenceId);
-			}
 		}
 
 		if (userDBService.isVirtualBank(user)) {
@@ -589,14 +578,7 @@ public class CustomerResource {
 							? CustomerAccountStatus.BANK_OTP_NOT_VERIFIED.value()
 							: CustomerAccountStatus.DELETED.value());
 		} else {
-			// For WALLET_INB accounts, set to ACTIVE immediately (no OTP verification
-			// needed)
-			if (addReq.getTypeOfMethod() != null
-					&& addReq.getTypeOfMethod() == CustomerAccountMethodType.WALLET_INB.value()) {
-				cAccount.setStatus(CustomerAccountStatus.ACTIVE.value());
-			} else {
-				cAccount.setStatus(CustomerAccountStatus.BANK_OTP_NOT_VERIFIED.value());
-			}
+			cAccount.setStatus(CustomerAccountStatus.BANK_OTP_NOT_VERIFIED.value());
 		}
 		// add new account
 		// NOTE: Use addAccount() directly instead of asyncAddAccount().get().

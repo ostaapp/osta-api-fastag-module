@@ -2338,7 +2338,8 @@ public class TollCustomerResource {
 			final String clientTransactionId) throws Exception, APIException {
 
 		List<Dipcoin> dCoins = coinDBService.asyncFindDipcoin(customerAccount.getId(),
-				Arrays.asList(DBConstants.DipcoinUsageType.FEE.value(), DBConstants.DipcoinUsageType.DEPOSIT.value()))
+				Arrays.asList(DBConstants.DipcoinUsageType.FEE.value(), DBConstants.DipcoinUsageType.DEPOSIT.value(),
+						DBConstants.DipcoinUsageType.TOLL.value()))
 				.get();
 
 		boolean createFeeDipcoin = true;
@@ -2383,6 +2384,7 @@ public class TollCustomerResource {
 						createDcoinReq.setAmount(createReq.getMiscCharges()
 								? feesAndDeposit.getRegistrationAmount().add(feesAndDeposit.getMiscellaneousCharges())
 								: feesAndDeposit.getRegistrationAmount());
+						createDcoinReq.setAccountId(customerAccount.getId());
 						createDcoinReq.setCardId(customerAccount.getUserCardId());
 						createDcoinReq.setCurrency(createReq.getCurrency());
 						createDcoinReq.setAuthorizationPin(createReq.getAuthorizationPin());
@@ -2431,6 +2433,7 @@ public class TollCustomerResource {
 						CustomerDipcoinRequest createDepositDcoinReq = new CustomerDipcoinRequest();
 
 						createDepositDcoinReq.setAmount(feesAndDeposit.getDepositAmount());
+						createDepositDcoinReq.setAccountId(customerAccount.getId());
 						createDepositDcoinReq.setCardId(customerAccount.getUserCardId());
 						createDepositDcoinReq.setCurrency(createReq.getCurrency());
 						createDepositDcoinReq.setAuthorizationPin(createReq.getAuthorizationPin());
@@ -2482,6 +2485,7 @@ public class TollCustomerResource {
 
 						TollRechargeRequest rechargeReq = new TollRechargeRequest();
 						rechargeReq.setAuthorizationPin(createReq.getAuthorizationPin());
+						rechargeReq.setCustomerAccountId(customerAccount.getId());
 						rechargeReq.setCardId(customerAccount.getUserCardId());
 						rechargeReq.setCurrency(createReq.getCurrency());
 
@@ -2502,7 +2506,10 @@ public class TollCustomerResource {
 						try {
 							minimumResponse = tollRechargeResource.tollRechargeCreateOsta(user, rechargeReq,
 									clientTransactionId, null);
-
+						} catch (APIException e) {
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("Toll Minimum Amount Dipcoin Generation Exception").format(), e);
+							minimumResponse = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getResponse());
 						} catch (Exception e) {
 							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 									.message("Toll Minimum Amount Dipcoin Generation Exception").format(), e);
@@ -2553,6 +2560,10 @@ public class TollCustomerResource {
 
 						try {
 							manageTagResponse = this.customerTollTagActivation(user, null, tollTag, registrationType);
+						} catch (APIException e) {
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("Toll Ihmcl Activation Failed").format(), e);
+							manageTagResponse = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getResponse());
 						} catch (Exception e) {
 							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 									.message("Toll Ihmcl Activation Failed").format(), e);
@@ -2607,7 +2618,8 @@ public class TollCustomerResource {
 			final String clientTransactionId) throws Exception, APIException {
 
 		List<Dipcoin> dCoins = coinDBService.asyncFindDipcoin(customerAccount.getId(),
-				Arrays.asList(DBConstants.DipcoinUsageType.FEE.value(), DBConstants.DipcoinUsageType.DEPOSIT.value()))
+				Arrays.asList(DBConstants.DipcoinUsageType.FEE.value(), DBConstants.DipcoinUsageType.DEPOSIT.value(),
+						DBConstants.DipcoinUsageType.TOLL.value()))
 				.get();
 
 		boolean createFeeDipcoin = true;
@@ -2635,6 +2647,11 @@ public class TollCustomerResource {
 									&& DBConstants.DipcoinStatus.ACTIVE.value() == dcoin.getStatus()) {
 								createDepositDipcoin = false;
 							}
+							if (vehicleInfo.getKey().equalsIgnoreCase(dcoin.getUsageCategory())
+									&& DBConstants.DipcoinUsageType.TOLL.value() == dcoin.getUsageType()
+									&& DBConstants.DipcoinStatus.ACTIVE.value() == dcoin.getStatus()) {
+								createMinimumAmountDipcoin = false;
+							}
 						}
 
 					}
@@ -2647,6 +2664,7 @@ public class TollCustomerResource {
 						createDcoinReq.setAmount(updateReq.getMiscCharges()
 								? feesAndDeposit.getRegistrationAmount().add(feesAndDeposit.getMiscellaneousCharges())
 								: feesAndDeposit.getRegistrationAmount());
+						createDcoinReq.setAccountId(customerAccount.getId());
 						createDcoinReq.setCardId(customerAccount.getUserCardId());
 						createDcoinReq.setCurrency(updateReq.getCurrency());
 						createDcoinReq.setAuthorizationPin(updateReq.getAuthorizationPin());
@@ -2693,6 +2711,7 @@ public class TollCustomerResource {
 						CustomerDipcoinRequest createDepositDcoinReq = new CustomerDipcoinRequest();
 
 						createDepositDcoinReq.setAmount(feesAndDeposit.getDepositAmount());
+						createDepositDcoinReq.setAccountId(customerAccount.getId());
 						createDepositDcoinReq.setCardId(customerAccount.getUserCardId());
 						createDepositDcoinReq.setCurrency(updateReq.getCurrency());
 						createDepositDcoinReq.setAuthorizationPin(updateReq.getAuthorizationPin());
@@ -2742,6 +2761,7 @@ public class TollCustomerResource {
 
 						TollRechargeRequest rechargeReq = new TollRechargeRequest();
 						rechargeReq.setAuthorizationPin(updateReq.getAuthorizationPin());
+						rechargeReq.setCustomerAccountId(customerAccount.getId());
 						rechargeReq.setCardId(customerAccount.getUserCardId());
 						rechargeReq.setCurrency(updateReq.getCurrency());
 
@@ -2764,6 +2784,10 @@ public class TollCustomerResource {
 							minimumResponse = tollRechargeResource.tollRechargeCreateOsta(user, rechargeReq,
 									clientTransactionId, null);
 
+						} catch (APIException e) {
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("Toll Minimum Amount Dipcoin Generation Exception").format(), e);
+							minimumResponse = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getResponse());
 						} catch (Exception e) {
 							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 									.message("Toll Minimum Amount Dipcoin Generation Exception").format(), e);
@@ -2808,6 +2832,10 @@ public class TollCustomerResource {
 
 						try {
 							manageTagResponse = this.customerTollTagActivation(user, null, tollTag, registrationType);
+						} catch (APIException e) {
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("Toll Ihmcl Activation Failed").format(), e);
+							manageTagResponse = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getResponse());
 						} catch (Exception e) {
 							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 									.message("Toll Ihmcl Activation Failed").format(), e);

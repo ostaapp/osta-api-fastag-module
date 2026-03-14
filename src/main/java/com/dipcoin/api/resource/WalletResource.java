@@ -254,23 +254,42 @@ public class WalletResource {
 		                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
 		                throw new APIException(HttpStatus.BAD_REQUEST, paymentTopupWalletResponse);
 		            }
-		            
-		            // ✅ FIX: Fetch the newly created account and set the bankUId
-		            customerAccount = getCustomerAccount(user.getId(), bank.getId(), null);
-		            
-		            if (customerAccount == null) {
-		                LOG.error("Customer account not found after creation");
+
+		            WalletUserInfo createdWalletInfo =
+		                walletCreated.getBody() instanceof WalletUserInfo
+		                    ? (WalletUserInfo) walletCreated.getBody()
+		                    : null;
+
+		            if (createdWalletInfo == null || createdWalletInfo.getCardId() == null) {
+		                LOG.error("Wallet created but cardId is missing from response");
 		                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
 		                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(paymentTopupWalletResponse);
 		            }
-		            
-		            // ✅ Set the bankUId from the virtual account response
-		            customerAccount.setBankUId(newBankUId);
-		            customerAccount = customerDBService.updateAccount(customerAccount);
-		            LOG.info("Wallet created and updated with bankUId: " + newBankUId);
-		            
-		            // Set walletId for the topup request
-		            topupReq.setWalletId(newBankUId);
+
+		            customerAccount =
+		                customerDBService.getAccount(user.getId(), createdWalletInfo.getCardId());
+
+		            if (customerAccount == null) {
+		                LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+		                    .message("Customer account not found after creation")
+		                    .data("userId", user.getId())
+		                    .data("cardId", createdWalletInfo.getCardId())
+		                    .data("walletId", createdWalletInfo.getWalletId())
+		                    .format());
+		                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_Not_CREATED);
+		                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(paymentTopupWalletResponse);
+		            }
+
+		            if (StringUtils.isBlank(customerAccount.getBankUId())) {
+		                customerAccount.setBankUId(newBankUId);
+		                customerAccount = customerDBService.updateAccount(customerAccount);
+		            }
+
+		            topupReq.setWalletId(
+		                StringUtils.isNotBlank(customerAccount.getBankUId())
+		                    ? customerAccount.getBankUId()
+		                    : newBankUId);
+		            LOG.info("Wallet created and resolved with bankUId: " + topupReq.getWalletId());
 
 		        } else {
 		            // ✅ Existing wallet - check if bankUId is valid
@@ -342,6 +361,15 @@ public class WalletResource {
 		            paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_TOPUP_FAILED);
 		            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(paymentTopupWalletResponse);
 		        }
+		    }
+
+		    if (TransactionRequestType.CREATEOSTA.value().equals(topupReq.getRequestType())) {
+		        ResponseEntity cleanupResponse = releaseLegacyCreateOstaDipcoins(user, customerAccount);
+		        if (cleanupResponse != null) {
+		            return cleanupResponse;
+		        }
+		        LOG.info("Using fastag CREATEOSTA topup path without wallet dipcoin generation");
+		        return addFastagMoney(topupReq, oauthUser, bank, customerAccount);
 		    }
 
 		    // * Get Customer osta
@@ -523,6 +551,7 @@ public class WalletResource {
 
 	public ResponseEntity addFastagMoney(AddMoneyToWalletRequest topupReq, User oauthUser, Bank bank,
 			CustomerAccount customerAccount) throws APIException, Exception {
+		LOG.info("Adding fastag money directly to wallet with bankUId: " + customerAccount.getBankUId());
 		AddMoneyInVirtualAccountRequest addMoneyInVirtualAccountRequest = populateAddMoneyInVirtualAccountRequest(
 				topupReq, bank, oauthUser, customerAccount, topupReq.getRequestType());
 		BankRequestContext bankRequestContext = new BankRequestContext();
@@ -546,7 +575,52 @@ public class WalletResource {
 		paymentTopupWalletResponse.setPartnerTransactionReferenceId(topupReq.getPartnerTransactionReferenceId());
 		paymentTopupWalletResponse.setOrderId(topupReq.getOrderId());
 
+		if (topupReq.getRequestType().equals(TransactionRequestType.CREATEOSTA.value())
+				&& topupReq.getIsSettlement().equals(IsSettlement.DEFAULT.value())) {
+			walletMetricRegistry.countOfAmountLoadedByAggrepay().increment();
+		}
+
 		return ResponseEntity.ok(paymentTopupWalletResponse);
+	}
+
+	private ResponseEntity releaseLegacyCreateOstaDipcoins(User user, CustomerAccount customerAccount)
+			throws Exception, APIException {
+		List<Dipcoin> existingDipcoins = this.coinDBService.getDipcoins(user.getId(),
+				DBConstants.DipcoinStatus.ACTIVE.value(), customerAccount.getId());
+
+		if (CollectionUtils.isEmpty(existingDipcoins)) {
+			return null;
+		}
+
+		for (Dipcoin existingDipcoin : existingDipcoins) {
+			if (existingDipcoin == null) {
+				continue;
+			}
+
+			Integer usageType = existingDipcoin.getUsageType();
+			boolean legacyWalletHold = usageType == null
+					|| DBConstants.DipcoinUsageType.GENERIC.value() == usageType
+					|| DBConstants.DipcoinUsageType.WALLET.value() == usageType;
+
+			if (!legacyWalletHold) {
+				continue;
+			}
+
+			LOG.info("Releasing legacy CREATEOSTA dipcoin before direct wallet credit. dipcoinId: "
+					+ existingDipcoin.getId() + ", usageType: " + usageType + ", amount: "
+					+ existingDipcoin.getAmount());
+			ResponseEntity releasedDipcoin = customerDipcoinResource.deleteDipcoin(user,
+					user.getPhone().concat(existingDipcoin.getCoin()), false);
+
+			if (releasedDipcoin.getStatusCode() != HttpStatus.OK) {
+				LOG.info(releasedDipcoin.getBody());
+				PaymentTopupWalletResponse paymentTopupWalletResponse = new PaymentTopupWalletResponse();
+				paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_TOPUP_FAILED);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(paymentTopupWalletResponse);
+			}
+		}
+
+		return null;
 	}
 
 	public User getUserDetails(String phonenum, int merchantId, String requestType) {

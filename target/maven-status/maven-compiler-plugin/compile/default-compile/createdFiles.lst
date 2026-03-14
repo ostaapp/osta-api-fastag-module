@@ -50,6 +50,7 @@ com\dipcoin\api\utils\RechargeConstants$ReconFileStatuses.class
 com\dipcoin\partner\utils\PartnerKeyStoreManager$1.class
 com\dipcoin\partner\toll\commons\TollConstant$RegistrationType.class
 com\dipcoin\api\resource\PartnerDipcoinResource.class
+com\dipcoin\api\model\PartnerApprovalStatus.class
 com\dipcoin\partner\recharge\comm\RechargeServiceResponse.class
 com\dipcoin\partner\recharge\comm\RechargeValidateResponse$Fields.class
 com\dipcoin\api\model\CreateUserWalletRequest.class
@@ -81,6 +82,7 @@ com\dipcoin\api\filter\request\AuthorizationInterceptor.class
 com\dipcoin\api\model\BankTransactionsResponse$BankTransactionResponse.class
 com\dipcoin\api\model\TollReqPayRequest.class
 com\dipcoin\api\utils\RechargeConstants$RechargeResponseStatus.class
+com\dipcoin\api\model\APIResponse$ResponseHeader.class
 com\dipcoin\api\model\TollTagFeeAndChargesResponse.class
 com\dipcoin\api\model\BankTransactionsResponse.class
 com\dipcoin\api\model\TollNetcSyncTimeRequest.class
@@ -140,6 +142,7 @@ com\dipcoin\api\model\VehicleDetails.class
 com\dipcoin\partner\recharge\comm\PartnerResponse.class
 com\dipcoin\api\utils\RechargeConfigurations$1.class
 com\dipcoin\partner\recharge\comm\BillMerchantServiceDetails.class
+com\dipcoin\api\model\APIResponse.class
 com\dipcoin\api\fraudMgmt\RuleEngine.class
 com\dipcoin\partner\recharge\comm\BillDetail.class
 com\dipcoin\api\resource\BrontooResource.class
@@ -159,10 +162,12 @@ com\dipcoin\api\utils\RechargeConstants$RechargeReconFileResponseCode.class
 com\dipcoin\bank\services\utils\VirtualBankProperties.class
 com\dipcoin\partner\recharge\comm\RechargeJioValidateResponse.class
 com\dipcoin\api\request\TollBankRequestHandler.class
+com\dipcoin\api\model\UserInfoResponse.class
 com\dipcoin\partner\recharge\comm\MDMBillers.class
 com\dipcoin\api\commons\TollProperties$ProdProfile.class
 com\dipcoin\api\resource\CustomerResource.class
 com\dipcoin\partner\recharge\comm\RechargeValidateRequest$Fields.class
+com\dipcoin\api\model\Pagination.class
 com\dipcoin\api\model\PartnerRegisterCustomerRequest$UserProfile.class
 com\dipcoin\api\model\PartnerRequest.class
 com\dipcoin\partner\recharge\comm\BillRegisterComplaintResponse.class
@@ -170,14 +175,17 @@ com\dipcoin\partner\recharge\comm\BillComplaintGenerationRequestDetails.class
 com\dipcoin\partner\recharge\comm\BillPaymentValidateResponse.class
 com\dipcoin\api\commons\TollProperties$DevProfile.class
 com\dipcoin\api\commons\APIConstants$ReportType.class
+com\dipcoin\api\filter\response\CacheControlInterceptor.class
 com\dipcoin\bank\services\comm\DipcoinRequest.class
 com\dipcoin\api\commons\OAuth2Utils$PartnerType.class
+com\dipcoin\api\filter\response\ResponseInterceptor.class
 com\dipcoin\partner\recharge\comm\RechargePlanResponse$Fields.class
 com\dipcoin\partner\recharge\comm\BillMerchantStatusDetails$ChannelDetails$Fields.class
 com\dipcoin\api\model\CustomerAccountResponse.class
 com\dipcoin\api\filter\HttpServletContext.class
 com\dipcoin\partner\recharge\comm\BillPaymentValidateResponse$Fields.class
 com\dipcoin\api\filter\request\RequestInterceptor.class
+com\dipcoin\api\model\UserDeviceInfoResponse.class
 com\dipcoin\api\resource\PartnerEncDecResource.class
 com\dipcoin\api\commons\APIConstants$TransactionRequestType.class
 com\dipcoin\api\commons\APIConstants$DateFormatter.class
@@ -223,6 +231,7 @@ com\dipcoin\partner\utils\PartnerClient$ChecksumFormat.class
 com\dipcoin\partner\recharge\comm\BillDetail$Fields.class
 com\dipcoin\partner\recharge\comm\BillRequest.class
 com\dipcoin\partner\recharge\client\RechargeClient.class
+com\dipcoin\metrics\OauthMetricRegistry.class
 com\dipcoin\api\model\UserUpdateRequest.class
 com\dipcoin\api\model\ReqVehicleDetailsRequest.class
 com\dipcoin\metrics\DipcoinMetricRegistry.class
@@ -271,6 +280,7 @@ com\dipcoin\api\model\TollTagUpdateRequest.class
 com\dipcoin\partner\recharge\comm\RechargeBalanceRequest.class
 com\dipcoin\partner\recharge\comm\BillPaymentServiceRequest.class
 com\dipcoin\api\utils\RechargeServiceException.class
+com\dipcoin\api\model\PartnerApprovalStatus$Approval.class
 com\dipcoin\api\model\Ref.class
 com\dipcoin\bank\services\utils\BankUtils.class
 com\dipcoin\partner\recharge\comm\BillComplaintStatusRequest$Fields.class
@@ -289,7 +299,9 @@ com\dipcoin\partner\recharge\client\RechargeHTTPSClient.class
 com\dipcoin\bank\services\client\BankClient$Protocol.class
 com\dipcoin\api\commons\TollProperties.class
 com\dipcoin\api\fraudMgmt\OstaUsage$1.class
+com\dipcoin\api\request\TollCustomerRequestHandlerAuth.class
 com\dipcoin\api\model\ReaderVerificationResult.class
+com\dipcoin\api\request\TollMerchantRequestHandlerAuth.class
 com\dipcoin\api\model\DipcoinsResponse.class
 com\dipcoin\api\model\Merchant.class
 com\dipcoin\partner\recharge\comm\RechargeStatusRequest$Fields.class

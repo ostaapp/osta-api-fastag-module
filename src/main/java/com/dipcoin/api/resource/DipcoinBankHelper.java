@@ -94,6 +94,7 @@ public class DipcoinBankHelper {
 		      bRequestMark.setBankUID(originDcoinCustomerAccount.getBankUId());
 		      bRequestMark.setUserId(String.valueOf(user.getId()));
 		      bRequestMark.setCardId(String.valueOf(originDcoinCustomerAccount.getUserCardId()));
+		      bRequestMark.setAccountId(String.valueOf(originDcoinCustomerAccount.getId()));
 
 		      bRequestMark.setDipcoinReferenceNumber(dipcoinReferenceNumber);
 		      bRequestMark.setCurrency(Currency.INDIA.value());

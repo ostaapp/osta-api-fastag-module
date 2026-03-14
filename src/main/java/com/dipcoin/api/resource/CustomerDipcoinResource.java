@@ -224,7 +224,19 @@ public class CustomerDipcoinResource {
 		}
 
 		// fetch customer account
-		CustomerAccount account = this.customerDBService.getAccount(user.getId(), createReq.getCardId());
+		CustomerAccount account = null;
+		if (createReq.getAccountId() != null && createReq.getAccountId() > NumberUtils.INTEGER_ZERO) {
+			account = this.customerDBService.getAccountById(createReq.getAccountId());
+			if (account != null && account.getUser() != null && account.getUser().getId() != user.getId()) {
+				response.addHeaderCode(HeaderCode.USER_UNAUTHORIZED);
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+			}
+		}
+
+		if (account == null) {
+			account = this.customerDBService.getAccount(user.getId(), createReq.getCardId());
+		}
+
 		if (account == null) {
 			response.addHeaderCode(HeaderCode.USER_ACCOUNT_DOESNT_EXIST);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -233,7 +245,12 @@ public class CustomerDipcoinResource {
 		// get customer account, fetch bank and verify bank
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetch CustomerAccount")
 				.data("Dipcoin Customer Account", account.getId()).data("UserId", user.getId())
-				.data("CardId", createReq.getCardId()).format());
+				.data("CardId", createReq.getCardId()).data("AccountId", createReq.getAccountId())
+				.data("BankUId", account.getBankUId()).format());
+		LOG.info("Resolved dipcoin customer account requestedAccountId:" + createReq.getAccountId()
+				+ " requestedCardId:" + createReq.getCardId() + " resolvedCustomerAccountId:" + account.getId()
+				+ " resolvedBankUId:" + account.getBankUId() + " usageType:" + createReq.getUsageType()
+				+ " usageCategory:" + createReq.getUsageCategory());
 
 		// account is inactive
 		if (!CustomerAccountStatus.ACTIVE.equals(account.getStatus())) {
@@ -676,6 +693,7 @@ public class CustomerDipcoinResource {
 		bRequest.setBankUID(account.getBankUId());
 		bRequest.setUserId(String.valueOf(user.getId()));
 		bRequest.setCardId(String.valueOf(account.getUserCardId()));
+		bRequest.setAccountId(String.valueOf(account.getId()));
 
 		bRequest.setDipcoinReferenceNumber(dipcoinReferenceNumber);
 		bRequest.setCurrency(Currency.INDIA.value());
@@ -719,6 +737,11 @@ public class CustomerDipcoinResource {
 					ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST)));
 		}
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankRequest", bRequest).format());
+		LOG.info("Sending bank lien request requestAccountId:" + bRequest.getAccountId() + " requestCardId:"
+				+ bRequest.getCardId() + " requestBankUId:" + bRequest.getBankUID() + " resolvedCustomerAccountId:"
+				+ account.getId() + " resolvedCustomerCardId:" + account.getUserCardId()
+				+ " resolvedCustomerBankUId:" + account.getBankUId() + " amount:" + bRequest.getAmount()
+				+ " dipcoinReferenceNumber:" + dipcoinReferenceNumber);
 		BankRequestContext bankRequestContext = new BankRequestContext();
 		bankRequestContext.setTraceId(httpServletContext.getTraceId());
 		Future<MarkLienResponse> bResponseTask = this.bankAPIServices.markLien(bankRequestContext, bRequest);
@@ -1418,6 +1441,7 @@ public class CustomerDipcoinResource {
 			bRequest.setCbsJournalNumber(lienMarkedBTx.getCBSReferenceID());
 			bRequest.setUserId(String.valueOf(originDcoinCustomerAccount.getUser().getId()));
 			bRequest.setCardId(String.valueOf(originDcoinCustomerAccount.getUserCardId()));
+			bRequest.setAccountId(String.valueOf(originDcoinCustomerAccount.getId()));
 
 			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("BankRequest", bRequest).format());
 			BankRequestContext bankRequestContext = new BankRequestContext();
