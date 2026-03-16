@@ -46,6 +46,7 @@ import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.AspectContext;
 import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.api.model.CustomerDipcoinResponse;
+import com.dipcoin.api.model.DipcoinResponse;
 import com.dipcoin.api.model.DipcoinThreadLocal;
 import com.dipcoin.api.fraudMgmt.EventUtils;
 import com.dipcoin.api.model.RequestMetadata;
@@ -71,6 +72,7 @@ import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.CustomerDBService;
 import com.dipcoin.db.services.DipcoinDBService;
 import com.dipcoin.db.services.MerchantDBService;
+import com.dipcoin.db.services.RechargeDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants;
 import com.dipcoin.db.services.commons.DBConstants.BankTransactionType;
@@ -149,6 +151,9 @@ public class CustomerDipcoinResource {
 	
 	@Autowired
 	private BankAPIServices bankAPIServices;
+	
+	@Autowired
+	private RechargeDBService rechargeDBService;
 	
 	@Autowired
 	private UserEventResource userEventResource;
@@ -1518,6 +1523,148 @@ public class CustomerDipcoinResource {
 						.message("Failed to add Bank Transaction").data("transaction", nBTx).format());
 			}
 		}
+	}
+
+	public ResponseEntity getTollDipcoinHierarchy(final User user, final String encCardId, final boolean encryptDipcoin)
+			throws Exception {
+
+		String originIp = httpServletContext.getOriginIp();
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Encrypted CarId", encCardId).format());
+		String decCarId = encryptDipcoin ? encryptionResource.decrypt(user, null, null, encCardId) : encCardId;
+		if (decCarId == null) {
+
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.INVALID_ENCRYPTED_DATA));
+		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("TollOsta Account")
+				.data("UserId", user.getId()).data("CardId", decCarId).format());
+
+		CustomerAccount customerAccount = this.customerDBService.getAccount(user.getId(), Integer.parseInt(decCarId));
+
+		// Card Id is not found
+		if (customerAccount == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.USER_ACCOUNT_DOESNT_EXIST));
+		}
+
+		// Check the UserId and DipcoinCreated User Id is Same
+		if (user.getId() != customerAccount.getUser().getId()) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		Dipcoin dipcoin = coinDBService.findDipcoin(customerAccount.getId(), DBConstants.DipcoinStatus.ACTIVE.value(),
+				DBConstants.DipcoinUsageType.TOLL.value());
+
+		if (dipcoin == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.DIPCOIN_DOESNT_EXIST));
+		}
+
+		return getDipcoinHierarchy(user, user.getPhone().concat(dipcoin.getCoin()), encryptDipcoin);
+
+	}
+	
+	/*
+	   *
+	   */
+	public ResponseEntity getDipcoinHierarchy(final User user, final String encDcoin, final boolean encryptDipcoin)
+			throws Exception {
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Encrypted Coin", encDcoin).format());
+		if (!this.userDBService.isCustomer(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		String decDcoin = encryptDipcoin ? encryptionResource.decrypt(user, null, null, encDcoin) : encDcoin;
+		if (decDcoin == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.INVALID_ENCRYPTED_DATA));
+		}
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Decrypted Coin", decDcoin).format());
+
+		// validate dipcoin
+		Either<ResponseEntity, String> validDipcoin = validateDipcoin(decDcoin, user);
+		if (validDipcoin.isLeft()) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed to validate dipcoin")
+					.format());
+			return validDipcoin.getLeft();
+		}
+
+		Dipcoin dcoin = this.coinDBService.getCoin(user.getId(), validDipcoin.get(), true);
+		if (dcoin == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.DIPCOIN_INVALID));
+		}
+
+		if (dcoin.getCustomerAccount().getUser().getId() != user.getId()) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("User Id", user.getId())
+					.data("Expected Id", dcoin.getCustomerAccount().getUser().getId()).format());
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		Integer pId = dcoin.getParentDipcoinId();
+		Integer dcoinId = dcoin.getId();
+		List<DipcoinResponse> dipcoins = new LinkedList<>();
+
+		if (pId > 0) {
+			LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching parent dcoin")
+					.data("dcoin", dcoin.getId()).format());
+			List<Dipcoin> parents = coinDBService.getParentDipcoins(dcoinId);
+			if (!CollectionUtils.isEmpty(parents)) {
+				for (int i = parents.size() - 1; i >= 0; i--) {
+					Dipcoin parentDcoin = parents.get(i);
+					dipcoins.add(populateDipcoinResponse(user, parentDcoin));
+				}
+			}
+		}
+		dipcoins.add(populateDipcoinResponse(user, dcoin));
+
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId()).message("Fetching child dcoin")
+				.data("dcoin", dcoin.getId()).format());
+		List<Dipcoin> children = coinDBService.getChildrenDipcoins(dcoinId);
+		if (!CollectionUtils.isEmpty(children)) {
+			for (int i = 0; i < children.size(); i++) {
+				Dipcoin childDcoin = children.get(i);
+				dipcoins.add(populateDipcoinResponse(user, childDcoin));
+			}
+		}
+		List<APIResponse> responses = new LinkedList<APIResponse>();
+		responses.addAll(dipcoins);
+		return ResponseEntity.ok(responses);
+	}
+	
+	/*
+	   *
+	   */
+	private DipcoinResponse populateDipcoinResponse(final User user, final Dipcoin dcoin) throws Exception {
+		CustomerDipcoinResponse response = new CustomerDipcoinResponse();
+		Merchant merchant = null;
+		DipcoinTransaction transaction = null;
+		// @TODO - paginate here if performance impact. Use async calls to fetch
+		// results in parallel.
+		List<Integer> types = new LinkedList<>();
+		types.add(DipcoinTransactionType.COMPLETELY_USED.value());
+		types.add(DipcoinTransactionType.PARTIALLY_USED.value());
+		types.add(DipcoinTransactionType.CARDLESS_CASH_WITHDRAWAL.value());
+		List<DipcoinTransaction> transactions = this.coinDBService.getTransactions(dcoin, types, null, null);
+		Recharge recharge = null;
+		if (!CollectionUtils.isEmpty(transactions)) {
+			try {
+				transaction = transactions.get(0);
+				merchant = merchantDBService.asyncGetMerchant(transaction.getPartnerReferenceId()).get();
+			} catch (InterruptedException | ExecutionException e) {
+			}
+
+			if (DBConstants.MerchantBusinessSegment.RECHARGE_BILLPAYMENTS.equals(merchant.getBusinessSegment())) {
+				recharge = rechargeDBService.getTransactionByRequestType(transaction.getDipcoinTransactionRefId(),
+						RechargeConstants.RequestType.SERVICE.value());
+			}
+		}
+
+		populateCustomerDipcoinResponse(encryptionResource, user, dcoin, merchant, transaction, response, coreUtils,
+				recharge, true);
+
+		return response;
 	}
 
 }

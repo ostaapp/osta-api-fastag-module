@@ -1,12 +1,21 @@
 package com.dipcoin.api.request;
 
+import java.util.Map;
+
+import javax.ws.rs.CookieParam;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.HttpHeaders;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,7 +30,12 @@ import com.dipcoin.api.commons.APIDoc;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.BankTransactionsResponse;
+import com.dipcoin.api.model.CustomerDipcoinResponse;
+import com.dipcoin.api.model.TollRechargeResponse;
+import com.dipcoin.api.model.TollRegistrationRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
+import com.dipcoin.api.resource.CustomerDipcoinResource;
 import com.dipcoin.api.resource.TollCustomerResource;
 import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
 
@@ -48,6 +62,9 @@ public class TollCustomerRequestHandlerAuth {
 
     @Autowired
     private TollCustomerResource tollServicesResource;
+    
+    @Autowired
+    private CustomerDipcoinResource customerDipcoinResource;
 
     @Autowired
     @Lazy
@@ -86,6 +103,21 @@ public class TollCustomerRequestHandlerAuth {
         return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, request,
                 RegistrationType.DEFAULT.value(), clientTransactionId);
     }
+    
+	/*
+	 * toll wallet registration amount lien mark
+	 */
+	@PostMapping("wallet/registration/payment")
+	@ApiOperation(value = "Virtual bank registration amount lien mark", notes = "API to lien mark wallet virtual account", response = BankTransactionsResponse.class)
+	public ResponseEntity walletRecharge(
+			@ApiParam(value = "Toll Recharge details", required = true) @RequestBody final TollRegistrationRequest createReq,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception {
+
+		return tollServicesResource.walletRecharge(httpServletContext.getUser(), createReq,
+				RegistrationType.WALLET.value());
+	}
 
     @PutMapping("register")
     @ApiOperation(value = "Toll Customer Update Account (JWT)", notes = "API to update existing Toll Customer account.", response = APIResponse.class)
@@ -104,6 +136,26 @@ public class TollCustomerRequestHandlerAuth {
         return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
                 request, RegistrationType.DEFAULT.value(), clientTransactionId);
     }
+    
+	@PostMapping("updateRegistrationNumber")
+	@ApiOperation(value = "Updated Registeration Details for toll services customer", notes = "API to update the registration number, response = TollTag.class")
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity updateTollCustomer(@RequestParam("RCImage") MultipartFile rcImg,
+			@RequestParam("vehicleImg") MultipartFile vehicleImg, @RequestParam("vinNumber") String vinNumber,
+			@RequestParam("serialNumber") String serialNumber,
+			@RequestParam("registrationNumber") String registrationNumber,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.updateRegistrationNumberAndAddImages(httpServletContext.getUser(), vinNumber,
+				serialNumber, registrationNumber, rcImg, vehicleImg);
+	}
 
     @DeleteMapping("{tcid:.*}")
     @ApiOperation(value = "Toll Customer Delete Account (JWT)", notes = "API to delete toll customer account.", response = APIResponse.class)
@@ -235,4 +287,143 @@ public class TollCustomerRequestHandlerAuth {
         return tollServicesResource.customerVehicleVerificationStatus(httpServletContext.getUser(),
                 vehicleRegistrationNo, tagId, tid, serialNumber, RegistrationType.DEFAULT.value(), cardId, true);
     }
+    
+	/*
+	 * toll transaction
+	 */
+	@GetMapping("transactions")
+	@ApiOperation(value = "Bank Transactions", notes = "API to fetch bank transactions. Admin User access only.", response = BankTransactionsResponse.class)
+	public ResponseEntity bankTollTransactions(
+			@ApiParam(value = "Start Time", required = false, defaultValue = "0") @RequestParam(value = "startTime", defaultValue = "0") Long startTime,
+			@ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(value = "endTime", defaultValue = "2147483646999") Long endTime,
+			@ApiParam(value = "vehicleNumber", required = false) @RequestParam(value = "vehicleNumber", required = false) String vehicleNumber,
+			@ApiParam(value = "Start", required = false, defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
+			@ApiParam(value = "Count", required = false, defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception {
+
+		return tollServicesResource.getTollTransactions(httpServletContext.getUser(), startTime, endTime, start, count,
+				vehicleNumber);
+	}
+	
+	@PostMapping("add/tollTag/{serialNumber}")
+	@ApiOperation(value = "Api to insert TollTag details in CustomerAccount Table", notes = "API to insert data in Customer Account table")
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity addDataInCustomerAccountTable(
+			@ApiParam(value = "Toll Up Details", required = true) @RequestBody final TollRegistrationRequest addDetails,
+			@ApiParam(value = "Serial Number", required = true) @PathVariable("serialNumber") final String serialNo,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.addTopUpDetails(httpServletContext.getUser(), addDetails, serialNo);
+	}
+	
+	@GetMapping("minimumAmount")
+	@ApiOperation(value = "Fetch the minimum amount", notes = "API to Fetch minimum amount.", response = TollRechargeResponse.class)
+	public ResponseEntity getMinimumAmount(
+			@ApiParam(value = "User CardId", required = true) @RequestParam(value = "userCardId", required = true) final Integer userCardId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.getSummationOfMinimumAmount(httpServletContext.getUser(), userCardId);
+	}
+	
+	@GetMapping("disputeOptions")
+	@ApiOperation(value = "Fetch function codes & Reason codes", notes = "API to Fetch function codes & Reason codes based on PreRequisite Code", response = TollRegistrationResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 400, message = "PreRequisite Codes Not Found", response = APIResponse.class) })
+	public ResponseEntity getDisputeOptions(
+			@ApiParam(value = "Pre-Requisite Code", required = true) @RequestParam(value = "preRequisiteCode", required = false) final Integer preRequisiteCode,
+			@ApiParam(value = "Function Codes", required = true) @RequestParam(value = "functionCodes", required = false) final Integer functionCodes,
+			@ApiParam(value = "Fetch All Function codes", required = true) @RequestParam(value = "fetchAll", required = false) final boolean fetchAll,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.getDisputeOptions(httpServletContext.getUser(), preRequisiteCode, functionCodes,
+				fetchAll);
+	}
+	
+	// this api works without login
+	@GetMapping("ihmclBank")
+	@ApiOperation(value = "Customer get IHMCL bank list and encrypted data if bank shortCode provided", notes = "API to get ihmcl bank list and encrypted data if bank shortCode provided for routing to ihmcl site", response = Map.class)
+	public ResponseEntity getIhmclBank(
+			@ApiParam(value = "bankShortCode", required = false) @RequestParam(value = "bankShortCode", required = false) final String bankShortCode)
+			throws Exception {
+
+		return tollServicesResource.getIhmclBank(bankShortCode);
+	}
+	
+	@PostMapping("IHMCL/register")
+	@ApiOperation(value = "Registration API for toll for IHMCL customers.", notes = "API to register a new fastag customer.", response = TollRegistrationResponse.class)
+	@ApiResponses(value = {
+			@ApiResponse(code = 201, message = "User registered AND (Failed to send otp sms OR Failed to send verification email)", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+			@ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+			@ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+			@ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class) })
+	public ResponseEntity registerBankCustomer(@RequestParam("RCImage") MultipartFile[] rcDoc,
+			@RequestParam("idProof") MultipartFile idProof, @RequestParam("request") String request,
+			@ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
+				request, RegistrationType.IHMCL.value(), clientTransactionId);
+	}
+	
+	@PutMapping("tag/{ttid:.*}")
+	@ApiOperation(value = "Toll Tag Customer Activation", notes = "API to activate toll tag from customer.", response = APIResponse.class)
+	public ResponseEntity customerTollTagActivation(
+			@ApiParam(value = "Toll Tag Id", required = true) @PathVariable("ttid") final String encryptedTTID,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.customerTollTagActivation(httpServletContext.getUser(), encryptedTTID, null,
+				RegistrationType.DEFAULT.value());
+	}
+	
+	@GetMapping("heirarchy/{cardId:.*}")
+	@ApiOperation(value = "Customer Get fastag Osta hierarchy", notes = "API to get customer Osta.", response = CustomerDipcoinResponse.class)
+	public ResponseEntity getTollHierarchy(
+			@ApiParam(value = "cardId", required = true) @PathVariable("cardId") final String encryptedCarId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception {
+
+		return customerDipcoinResource.getTollDipcoinHierarchy(httpServletContext.getUser(), encryptedCarId, false);
+	}
+	
+	@DeleteMapping("osta/{cdid:.*}")
+	@ApiOperation(value = "Delete Toll Osta", notes = "API to Release toll Osta", response = APIResponse.class)
+	public ResponseEntity deleteTollOsta(
+			@ApiParam(value = "card Id", required = true) @PathVariable("cdid") final String cardId,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.deleteTollOsta(httpServletContext.getUser(), cardId);
+	}
+	
+	@DeleteMapping("tag/{ttid:.*}")
+	@ApiOperation(value = "Toll Tag Deactivate Account", notes = "API to Deactivate toll tag account.", response = APIResponse.class)
+	public ResponseEntity deactivateTollTag(
+			@ApiParam(value = "Toll Tag Id", required = true) @PathVariable("ttid") final String encryptedTTID,
+			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			throws Exception, APIException {
+
+		return tollServicesResource.deactivateTollTagByCustomer(httpServletContext.getUser(), encryptedTTID);
+	}
+	
 }

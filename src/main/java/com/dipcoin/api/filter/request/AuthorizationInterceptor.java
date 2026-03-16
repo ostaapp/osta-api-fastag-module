@@ -47,8 +47,6 @@ public class AuthorizationInterceptor implements RequestInterceptor {
   @Autowired
   private MerchantDBService merchantDBService;
   @Autowired
-  private BankDBService bankDBService;
-  @Autowired
   private HttpServletContext httpServletContext;
   @Autowired
   private BankDBService bankDBService;
@@ -217,8 +215,7 @@ public class AuthorizationInterceptor implements RequestInterceptor {
         log.debug(LogFormatter.instance(httpServletContext.getTraceId())
             .message("JWT validated and user set in context")
             .data("UserId", fullUser.getId())
-            .data("MerchantId", merchant != null ? merchant.getId() : null)
-            .data("BankId", bank != null ? bank.getId() : null)
+            .data("BankId", fullUser.getBankMerchantId())
             .format());
 
         log.info(LogFormatter.instance(httpServletContext.getTraceId())
