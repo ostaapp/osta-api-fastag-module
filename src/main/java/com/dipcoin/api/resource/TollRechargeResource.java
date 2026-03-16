@@ -533,17 +533,19 @@ public class TollRechargeResource {
 		ResponseEntity updateExcCodeResponse = updateExceptionCode(TollConstant.REMOVE_OP, customerAccount, dipcoin,
 				user, null, rechargeReq, coinResponse);
 
-		if (createDipcoinresponse.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+		if (updateExcCodeResponse.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
 			return updateExcCodeResponse;
 		}
+
 		Object responseBody = updateExcCodeResponse.getBody();
 		TollTag tollTag = null;
-		if (responseBody instanceof TollTag) {
+		if (responseBody == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Skipping toll tag exception code update because tagId is not available").format());
+		} else if (responseBody instanceof TollTag) {
 			tollTag = (TollTag) responseBody;
-			// Proceed with your logic using tollTag
 		} else if (responseBody instanceof APIResponse) {
 			APIResponse apiResponse = (APIResponse) responseBody;
-			// Handle the APIResponse (e.g., log an error or throw an exception)
 			LOG.error("Received APIResponse instead of TollTag - ", apiResponse);
 			throw new IllegalStateException("Received APIResponse instead of TollTag: " + apiResponse);
 		} else {
@@ -730,7 +732,11 @@ public class TollRechargeResource {
 			}
 			return ResponseEntity.status(HttpStatus.OK).body(tollTag);
 		}
-		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(tollTag);
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Skipping toll tag exception code update because recharge request does not contain tagId")
+				.format());
+		return ResponseEntity.status(HttpStatus.OK).build();
 	}
 
 	public ResponseEntity revertDipcoin(User user, TollRechargeRequest rechargeReq,
