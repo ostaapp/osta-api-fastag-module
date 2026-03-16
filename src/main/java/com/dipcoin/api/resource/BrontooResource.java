@@ -39,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.commons.APIUtils;
 import com.dipcoin.api.commons.HeaderCode;
+import com.dipcoin.api.commons.OfflineJobClient;
 import com.dipcoin.api.commons.TollEmailUtils;
 import com.dipcoin.api.commons.TollProperties;
 import com.dipcoin.api.config.ApplicationProperties;
@@ -67,6 +68,7 @@ import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.commons.SmsClient;
 import com.dipcoin.commons.SmsClient.Templates;
 import com.dipcoin.db.services.BankDBService;
+import com.dipcoin.db.services.DipcoinDBService;
 import com.dipcoin.db.services.MerchantDBService;
 import com.dipcoin.db.services.TollDBService;
 import com.dipcoin.db.services.UserDBService;
@@ -75,6 +77,9 @@ import com.dipcoin.db.services.commons.DBConstants.MerchantBusinessSegment;
 import com.dipcoin.db.services.commons.DBConstants.TollTagExcCodeStatus;
 import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 import com.dipcoin.db.services.model.Bank;
+import com.dipcoin.db.services.model.BankTransaction;
+import com.dipcoin.db.services.model.Dipcoin;
+import com.dipcoin.db.services.model.DipcoinTransaction;
 import com.dipcoin.db.services.model.Epc;
 import com.dipcoin.db.services.model.Merchant;
 import com.dipcoin.db.services.model.TollTag;
@@ -134,6 +139,11 @@ public class BrontooResource {
   @Autowired
   CustomerDipcoinResource customerDipcoinResource;
   
+  @Autowired
+  private DipcoinDBService coinDBService;
+  
+  @Autowired
+  private OfflineJobClient offlineJobClient;
   
   @Autowired
   @Qualifier("debitsReqpayRabbitTemplate")
@@ -1225,5 +1235,247 @@ public class BrontooResource {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 				.body(APIResponse.error(HeaderCode.TOLL_USER_DETAILS_CANNOT_UPDATE));
 	}
+	
+	 // From rabbitMq this API is called for further debit process
+    public void fastagDebitJob(List<String> partnerTransactionId, String traceId) throws Exception {
+		try {
+			if (partnerTransactionId == null) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Request is null").format());
+			}
+			LOG.debug(LogFormatter.instance(traceId).data("partnerTransactionId", partnerTransactionId).format());
+
+			// fetching dipcoinTransaction using partnerTransactionIds
+			List<DipcoinTransaction> dipcoinTransaction = coinDBService
+					.findDipcoinTransactionByPartnerTransactionReferenceId(partnerTransactionId);
+
+			LOG.debug(LogFormatter.instance(traceId).data("Fetched dipcoinTransaction by :", dipcoinTransaction)
+					.format());
+
+			if (dipcoinTransaction.isEmpty()) {
+				LOG.info(LogFormatter.instance().message("Empty List of DipcoinTransaction").format());
+			}
+
+			List<String> partnerTransactionReferenceIdList = new ArrayList<>();
+			List<Integer> dtxIds = new ArrayList<>();
+
+			for (DipcoinTransaction dtxns : dipcoinTransaction) {
+				String partnerTransactionReferenceId = dtxns.getPartnerTransactionReferenceId();
+				LOG.debug(LogFormatter.instance(traceId)
+						.data("partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+
+				// If dtx type is 19
+				if (dtxns.getType() == DBConstants.DipcoinTransactionType.DEEMED_ACCEPTED.value()) {
+					if (dtxns.getCustomerAccountId() == 0) {
+						LOG.debug(LogFormatter.instance(traceId)
+								.data("Customer Account Id null for :", partnerTransactionReferenceId).format());
+						continue;
+					} else {
+						int customerAccountId = dtxns.getCustomerAccountId();
+						String usageDetails = dtxns.getUsageDetails();
+				        String vehicleNo = usageDetails.split("[ ,]")[0];
+//						String vehicleNo = dtxns.getUsageDetails().substring(0, dtxns.getUsageDetails().indexOf(' '));
+						LOG.debug(LogFormatter.instance(traceId).data("vehicleNo :", vehicleNo).format());
+						// by using vehicleNo checking if the vehicle is in low balance or not
+						List<TollTag> tollTags = tollDBService.findTollTagByRegistrationNoAndStatus(vehicleNo,
+								Arrays.asList(String.valueOf(DBConstants.TollTagApprovalStatus.ACTIVE.value())));
+						TollTag tollTag = tollTags.get(0);
+						if (tollTag != null) {
+							String excCode = tollTag.getExcCode();
+							if (DBConstants.TollTagExcCodeStatus.ACTIVE.value().equals(excCode)) {
+								LOG.debug(LogFormatter.instance(traceId).data(
+										"Vehicle is active calling processDipcoinTransaction for type 19 for partnerTransactionRefId :",
+										partnerTransactionReferenceId).format());
+								// this method is common method to update the transactions according to the
+								// requirements
+								this.processDipcoinTransaction(dtxIds,dtxns, customerAccountId, partnerTransactionReferenceId,
+										traceId);
+
+							} else if (DBConstants.TollTagExcCodeStatus.LOW_BALANCE.value().equals(excCode)) {
+								LOG.debug(LogFormatter.instance(traceId)
+										.data("Vehicle in low balance for type 19  :", partnerTransactionReferenceId)
+										.format());
+								continue;
+							}
+						} else {
+							LOG.debug(LogFormatter.instance(traceId)
+									.data("TollTag is Empty for  :", partnerTransactionReferenceId).format());
+							continue;
+						}
+					}
+				}
+
+				// if type is 2,3,4
+				if (dtxns.getType() == DBConstants.DipcoinTransactionType.VALIDATION_FAILURE.value()
+						|| dtxns.getType() == DBConstants.DipcoinTransactionType.PARTIALLY_USED.value()
+						|| dtxns.getType() == DBConstants.DipcoinTransactionType.COMPLETELY_USED.value()) {
+
+					// checks in btx if already debited or not
+					BankTransaction btx = this.bankDBService.getBankTransactionByDipcoinIdAndAmountAndTypeAndStatus(
+							dtxns.getDipcoinId(), dtxns.getAmount(),
+							DBConstants.BankTransactionType.DEBIT_TO_ACCOUNT.value(),
+							DBConstants.BankTransactionsStatus.SUCCESS.value());
+					LOG.debug(LogFormatter.instance(traceId).data("btx", btx)
+							.data("partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+
+					if (btx != null) {
+						LOG.info(LogFormatter.instance().message("Type 6 entry found already debited")
+								.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+						continue;
+					} else {
+						if (dtxns.getCustomerAccountId() == 0) {
+							LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+									.message("CustomerAccountId is Null")
+									.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+							continue;
+						} else {
+							int customerAccountId = dtxns.getCustomerAccountId();
+							LOG.debug(LogFormatter.instance(traceId).data("customerAccountId", customerAccountId)
+									.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+
+							// this method is common method to update the transactions according to the
+							// requirements
+							this.processDipcoinTransaction(dtxIds,dtxns, customerAccountId, partnerTransactionReferenceId,
+									traceId);
+
+						}
+
+					}
+				}
+
+				// if type is 15
+				if (dtxns.getType() == DBConstants.DipcoinTransactionType.CHARGE_BACK.value()) {
+					LOG.debug(LogFormatter.instance(traceId)
+							.data("Given transaction is Type 15 i.e ChargeBack for partnerTransactionReferenceId:",
+									partnerTransactionReferenceId)
+							.format());
+
+					continue;
+				}
+
+				// if type is 21
+				if (dtxns.getType() == DBConstants.DipcoinTransactionType.CLONE_TRANSACTION.value()) {
+					LOG.debug(LogFormatter.instance(traceId).data(
+							"Given transaction is Type 19 i.e CloneTransaction for partnerTransactionReferenceId:",
+							partnerTransactionReferenceId).format());
+					continue;
+				}
+
+			}
+			if (!dtxIds.isEmpty()) {
+                offlineJobClient.initTollDeemedTransactionAccountingJob(dtxIds, traceId);
+                LOG.info(LogFormatter.instance(traceId).message("Job Run Successfully").format());
+            }
+		} catch (Exception e) {
+			LOG.error(LogFormatter.instance(traceId).message("Error in fastagDebitJob method").format(), e);
+			throw e;
+		}
+	}
+    
+    public void processDipcoinTransaction(List<Integer> dtxIds,DipcoinTransaction dtxns, int customerAccountId,
+			String partnerTransactionReferenceId, String traceId) throws Exception {
+		try {
+			// in this query it checks for the Active dipcoin
+			Dipcoin dipcoin = coinDBService.findDipcoinByCustomerAccountIdAndUsageTypeAndStatusAndStatusWithBank(
+					customerAccountId, DBConstants.DipcoinUsageType.TOLL.value(),
+					DBConstants.DipcoinStatus.ACTIVE.value(), 0);
+			LOG.debug(LogFormatter.instance(traceId).data("Checking Active DIpcoin for :", dipcoin)
+					.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+
+			if(dipcoin != null) {
+			// Convert expiry time to Date
+			Date expiryDate = new Date(Long.valueOf(dipcoin.getExpiryTime()));
+			// Get current time
+			Date currentDate = new Date();
+			// Check if the expiry time is less than the current time
+			boolean isExpired = expiryDate.before(currentDate);
+			
+
+			// first it checks if the dipcoin is expired if (expired) --> then it cancles
+			// the active dipcoin and update dtx to type 19 and try to debit
+			if (isExpired) {
+				LOG.debug(LogFormatter.instance(traceId).data("isExpired", isExpired)
+						.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+				dipcoin.setStatus(DBConstants.DipcoinStatus.CANCELLED.value());
+				coinDBService.updateCoin(dipcoin);
+				dtxns.setType(DBConstants.DipcoinTransactionType.DEEMED_ACCEPTED.value());
+				this.coinDBService.updateTransaction(dtxns);
+				LOG.debug(LogFormatter.instance(traceId)
+						.data("Calling tollDeemed Job for partnerTransactionReferenceId", partnerTransactionReferenceId)
+						.format());
+				dtxIds.add(dtxns.getId());
+//				offlineJobClient.initTollDeemedTransactionAccountingJob(dtxns.getId(),dtxns.getRequestTime(), traceId);
+				LOG.debug(LogFormatter.instance(traceId)
+						.data("succefully called job for expired dipcoin for partnerTransactionReferenceId",
+								partnerTransactionReferenceId)
+						.format());
+				return;
+			}
+			}
+
+//			//if we dont active , search for cancelled 
+//			if (dipcoin == null) {
+//				dipcoin = coinDBService.findDipcoinByCustomerAccountIdAndUsageTypeAndStatusAndStatusWithBank(
+//						customerAccountId, DBConstants.DipcoinUsageType.TOLL.value(),
+//						DBConstants.DipcoinStatus.CANCELLED.value(), 0);
+			if (dipcoin == null) {
+				dtxns.setType(DBConstants.DipcoinTransactionType.DEEMED_ACCEPTED.value());
+				this.coinDBService.updateTransaction(dtxns);
+				LOG.debug(LogFormatter.instance(traceId)
+						.data("Calling tollDeemed Job for not getting active dipcoin for partnerTransactionReferenceId",
+								partnerTransactionReferenceId)
+						.format());
+				dtxIds.add(dtxns.getId());
+//				offlineJobClient.initTollDeemedTransactionAccountingJob(dtxns.getId(),dtxns.getRequestTime(), traceId);
+				LOG.info(LogFormatter.instance().message("Successfully ran job").format());
+				return;
+			}
+
+			Integer activeDipcoinId = dipcoin.getId();
+			// if we get the Active dipcoin then check if the lien is there or not on that
+			// dipcoin
+			if (activeDipcoinId != 0) {
+				BankTransaction btx = bankDBService.getBankTransactionByDipcoinIdAndTypeAndStatus(activeDipcoinId,
+						DBConstants.BankTransactionType.LIEN_MARK.value(),
+						DBConstants.BankTransactionsStatus.SUCCESS.value());
+				LOG.debug(LogFormatter.instance(traceId).data("Btx Active dipcoin", btx)
+						.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+
+				if (btx != null) {
+					// if lien is present then update dtx entry to type 19 and call job
+					dtxns.setType(DBConstants.DipcoinTransactionType.DEEMED_ACCEPTED.value());
+					this.coinDBService.updateTransaction(dtxns);
+					LOG.debug(LogFormatter.instance(traceId).data("dtxns convert 19 and calling job", dtxns)
+							.data("for partnerTransactionReferenceId", partnerTransactionReferenceId).format());
+					dtxIds.add(dtxns.getId());
+//					offlineJobClient.initTollDeemedTransactionAccountingJob(dtxns.getId(),dtxns.getRequestTime(), traceId);
+					LOG.info(LogFormatter.instance().message("Successfully ran job when BTX is not null").format());
+					return;
+
+				} else {
+					// if lien is not present then update active dipcoin to cancelled and then
+					// update dtx entry to type 19 and call job
+					Dipcoin activeDipcoin = coinDBService.getDipcoinById(activeDipcoinId);
+					activeDipcoin.setStatus(DBConstants.DipcoinStatus.CANCELLED.value());
+					if (coinDBService.updateCoin(activeDipcoin) != null) {
+						dtxns.setType(DBConstants.DipcoinTransactionType.DEEMED_ACCEPTED.value());
+						if (this.coinDBService.updateTransaction(dtxns) != null) {
+							LOG.debug(LogFormatter.instance(traceId).data(
+									"Calling tollDeemed Job after cancelling the active dipcoin for partnerTransactionReferenceId",
+									partnerTransactionReferenceId).format());
+							dtxIds.add(dtxns.getId());
+							LOG.info(LogFormatter.instance().message("Successfully ran job when BTX is null").format());
+							return;
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			LOG.error(LogFormatter.instance(traceId).message("Error in  processDipcoinTransaction method").format(), e);
+			throw e;
+
+		}
+
+	}
+    
 
 }

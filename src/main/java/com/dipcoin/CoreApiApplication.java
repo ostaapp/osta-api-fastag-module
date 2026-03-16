@@ -28,7 +28,8 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
 	    "classpath*:dipcoin-ebank-services-application-context.xml",
         "classpath*:dipcoin-core-services-application-context.xml",
         "classpath*:dipcoin-db-services-fastag.xml",
-        "classpath*:dipcoin-partner-services-application-context.xml"
+        "classpath*:dipcoin-partner-services-application-context.xml",
+        "classpath*:dipcoin-api-system-application-context.xml"
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @PropertySources({
