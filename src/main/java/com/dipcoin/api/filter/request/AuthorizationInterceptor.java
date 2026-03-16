@@ -51,6 +51,8 @@ public class AuthorizationInterceptor implements RequestInterceptor {
   @Autowired
   private HttpServletContext httpServletContext;
   @Autowired
+  private BankDBService bankDBService;
+  @Autowired
   private JwtDecoder jwtDecoder;
   // @Autowired
   // private ApplicationProperties applicationProperties;
@@ -167,63 +169,51 @@ public class AuthorizationInterceptor implements RequestInterceptor {
 
         Object bankMerchantIdClaim = jwt.getClaim("bankMerchantId");
         if (bankMerchantIdClaim instanceof Number) {
-          user.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
+            user.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
         }
 
-        // Load the exact user row from the subject id first. Falling back to email/phone can
-        // select the wrong user when multiple roles share the same contact details.
-        User fullUser = null;
-        List<User> matchedUsers = userDBService.getUsersByIds(Arrays.asList(user.getId()));
-        if (matchedUsers != null && !matchedUsers.isEmpty()) {
-          fullUser = matchedUsers.get(0);
-        }
+        // Fetch full user from database to ensure status and roles are current
+        User fullUser = userDBService.getUser(email, phone);
+
         if (fullUser == null) {
-          fullUser = userDBService.getUser(email, phone);
-        }
-        if (fullUser == null) {
-          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
-              .message("User from JWT not found in database").data("UserId", user.getId()).format());
-          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
-              .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED).toString()));
+            log.warn(LogFormatter.instance(httpServletContext.getTraceId())
+                .message("User from JWT not found in database")
+                .data("UserId", user.getId())
+                .format());
+
+            return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
+                .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED).toString()));
         }
 
+        // preserve bankMerchantId from JWT
+        if (bankMerchantIdClaim instanceof Number) {
+            fullUser.setBankMerchantId(((Number) bankMerchantIdClaim).intValue());
+        }
+
+        // preserve role from JWT
+        Object roleClaim = jwt.getClaim("role");
+        if (roleClaim instanceof String) {
+            fullUser.setRole((String) roleClaim);
+        }
+
+        // set user in context
         httpServletContext.setUser(fullUser);
 
-        Merchant merchant = null;
-        Bank bank = null;
-        if (this.userDBService.merchantRepresentative(fullUser)) {
-          merchant = this.merchantDBService.getMerchant(fullUser.getBankMerchantId());
-          if (merchant == null) {
-            merchant = this.merchantDBService.getMerchantByUser(fullUser.getId());
-          }
-          if (merchant != null) {
-            httpServletContext.setMerchant(merchant);
-          }
-        } else if (this.userDBService.bankRepresentative(fullUser)) {
-          bank = this.bankDBService.getBank(fullUser.getBankMerchantId());
-          if (bank != null) {
-            httpServletContext.setBank(bank);
-          }
-        }
+        // set bank in context
+        if (fullUser.getBankMerchantId() > 0) {
 
-        if (this.userDBService.merchantRepresentative(fullUser) && merchant == null) {
-          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
-              .message("JWT user resolved but merchant context is missing")
-              .data("UserId", fullUser.getId())
-              .data("BankMerchantId", fullUser.getBankMerchantId())
-              .format());
-          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
-              .body(APIResponse.error(HeaderCode.MERCHANT_UNAUTHORIZED).toString()));
-        } else if (this.userDBService.bankRepresentative(fullUser) && bank == null) {
-          log.warn(LogFormatter.instance(httpServletContext.getTraceId())
-              .message("JWT user resolved but bank context is missing")
-              .data("UserId", fullUser.getId())
-              .data("BankMerchantId", fullUser.getBankMerchantId())
-              .format());
-          return Optional.of(ResponseEntity.status(HttpStatus.SC_FORBIDDEN)
-              .body(APIResponse.error(HeaderCode.BANK_UNAUTHORIZED).toString()));
-        }
+            Bank bank = bankDBService.getBank(fullUser.getBankMerchantId());
 
+            if (bank != null) {
+                httpServletContext.setBank(bank);
+
+                log.info(LogFormatter.instance(httpServletContext.getTraceId())
+                    .message("Bank set in context")
+                    .data("BankId", bank.getId())
+                    .data("BankIIN", bank.getIin())
+                    .format());
+            }
+        }
         log.debug(LogFormatter.instance(httpServletContext.getTraceId())
             .message("JWT validated and user set in context")
             .data("UserId", fullUser.getId())

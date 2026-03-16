@@ -65,6 +65,7 @@ import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.api.model.Detail;
+import com.dipcoin.api.model.EpcResponse;
 import com.dipcoin.api.model.Head;
 import com.dipcoin.api.model.Pagination;
 import com.dipcoin.api.model.PartnerProcessDipcoinRequest;
@@ -114,6 +115,7 @@ import com.dipcoin.db.services.commons.DBConstants.BankTransactionsStatus;
 import com.dipcoin.db.services.commons.DBConstants.BooleanStatus;
 import com.dipcoin.db.services.commons.DBConstants.DipcoinTransactionType;
 import com.dipcoin.db.services.commons.DBConstants.DipcoinTransactionsStatus;
+import com.dipcoin.db.services.commons.DBConstants.EpcStatus;
 import com.dipcoin.db.services.commons.DBConstants.EpcVisibilityStatus;
 import com.dipcoin.db.services.commons.DBConstants.MerchantBusinessSegment;
 import com.dipcoin.db.services.commons.DBConstants.TagDeliveryType;
@@ -1829,12 +1831,21 @@ public class TollBankResource {
 	public ResponseEntity vehicleVerification(User user, String vehicleRegistrationNo, String tagId, String tid,
 			Integer regType, String bankReferenceId) {
 		// Check for the Request form bank
+		LOG.info("VehicleVerification API called");
+		LOG.info("UserId: {}", user.getId());
+		LOG.info("UserRole: {}", user.getRole());
+		LOG.info("UserStatus: {}", user.getStatus());
 		TollTagResponse tollTagResponse = new TollTagResponse();
+		LOG.info("UserRole: {}", user.getRole());
+		LOG.info("Allowed Bank Roles: {}", UserRoles.bankUserRoles());
+		LOG.info("Allowed Merchant Roles: {}", UserRoles.merchantUserRoles());
+
 		if (!(UserRoles.bankUserRoles().contains(user.getRole())
 				|| UserRoles.merchantUserRoles().contains(user.getRole()))) {
+			 LOG.warn("Unauthorized role trying vehicleVerification: {}", user.getRole());
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
 		}
-
+		
 		if (!this.userDBService.isActive(user)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
@@ -4035,6 +4046,94 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 
 		return ResponseEntity.ok(tollTransactionsReportResponse);
 
+	}
+	
+	
+	public ResponseEntity getTags(User user, String clientTransactionId, Long startTime, Long endTime, Integer start,
+			Integer count, String category) throws Exception, APIException {
+
+		List<EpcResponse> epcResponses = new ArrayList<>();
+
+		if (clientTransactionId == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.MISSING_CLIENTTRANSACTIONID));
+		}
+
+		if (!this.userDBService.bankRepresentative(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		if (!this.userDBService.isActive(user)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+		}
+
+		List<Epc> epcs = new ArrayList<>();
+		if (StringUtils.isNotBlank(category)) {
+			epcs = tollDBService.asyncfindByIinAndCategory(httpServletContext.getBank().getIin(),
+					getBankKey(Integer.parseInt(category.replaceAll("[^0-9]", ""))), EpcStatus.NOTUSED.value(),
+					EpcVisibilityStatus.SHOW.value(), start, count).get();
+		} else {
+			epcs = tollDBService.asyncFindByIinAndCreatedDateTime(httpServletContext.getBank().getIin(), start, count,
+					startTime, endTime).get();
+		}
+
+		// set pagination info
+		Pagination pagination = new Pagination();
+		pagination.setStartRange(startTime);
+		pagination.setEndRange(endTime);
+		pagination.setScanCompleted(epcs.size() < count);
+		pagination.setTotal(epcs.size());
+		if (!pagination.getScanCompleted()) {
+			pagination.setStart(start + count);
+		}
+
+		Map<String, Object> epcResponse = new HashMap<>();
+
+		epcResponse.put("epcs", populateEpc(epcResponses, epcs));
+		epcResponse.put("pagination", pagination);
+
+		return ResponseEntity.status(HttpStatus.OK).body(epcResponse);
+	}
+	
+	//
+	public String getBankKey(Integer category) {
+
+		String bankKey = String.valueOf(category);
+		if (category < 10) {
+			bankKey = "00" + bankKey;
+		}
+
+		if (category >= 10 && category < 100) {
+			bankKey = "0" + bankKey;
+		}
+
+		return bankKey;
+	}
+
+	public List<EpcResponse> populateEpc(List<EpcResponse> epcResponses, List<Epc> epcs) {
+		for (Epc epc : epcs) {
+			EpcResponse epcResponse = new EpcResponse();
+			epcResponse.setApplicationIdentifier(epc.getApplicationIdentifier());
+			epcResponse.setBinaryDetail(epc.getBinaryDetail());
+			epcResponse.setCompanyPrefix(epc.getCompanyPrefix());
+			epcResponse.setEpcPureIdentityURI(epc.getEpcPureIdentityURI());
+			epcResponse.setEpcRawURI(epc.getEpcRawURI());
+			epcResponse.setEpcScheme(epc.getEpcScheme());
+			epcResponse.setEpcTagURI(epc.getEpcTagURI());
+			epcResponse.setFilterValue(epc.getFilterValue());
+			epcResponse.setIin(epc.getIin());
+			epcResponse.setIndividualAssetReference(epc.getIndividualAssetReference());
+			epcResponse.setPartitionValue(epc.getPartitionValue());
+			epcResponse.setPrefixLength(epc.getPrefixLength());
+			epcResponse.setRfidTag(epc.getRfidTag());
+			epcResponse.setSerialNumber(epc.getSerialNumber());
+			epcResponse.setTagSize(epc.getTagSize());
+			epcResponse.setTid(epc.getTid());
+			epcResponse.setCategory(String.valueOf(Integer.parseInt(epc.getCategory())));
+			epcResponse.setStatus(epc.getStatus() == DBConstants.EpcStatus.USED.value() ? "Used" : "Not Used");
+			epcResponses.add(epcResponse);
+		}
+		return epcResponses;
 	}
 
 

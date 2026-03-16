@@ -271,16 +271,25 @@ public class TollMerchantResource {
 	 * Get banks info list
 	 */
 	public ResponseEntity getBanks(final User user) throws Exception {
+		LOG.info("UserId: {}", user.getId());
+		LOG.info("UserStatus: {}", user.getStatus());
 
 		if (!this.userDBService.isActive(user)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
 
 		Merchant merchant = merchantDBService.getMerchant(user.getBankMerchantId());
+		
+		LOG.info("Fetched Merchant: {}", merchant);
 
 		if (merchant == null) {
+			LOG.warn("Merchant not found for MerchantId: {}", user.getBankMerchantId());
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
+		
+		 LOG.info("MerchantId: {}", merchant.getId());
+		    LOG.info("MerchantStatus: {}", merchant.getStatus());
+		    LOG.info("MerchantBankIds: {}", merchant.getBankId());
 
 		List<BankInfoResponse> banks = new LinkedList<>();
 		List<Bank> bankList = this.bankDBService.findBanksByIds(
@@ -957,14 +966,21 @@ public class TollMerchantResource {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
 
+//		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+//				.message("Get All Toll Customer list based on just BankId")
+//				.data("bankId", httpServletContext.getUser().getBankMerchantId()).format());
+//
+//		// Getting the all Register user
+//		List<TollTag> tollTags = this.tollDBService.findTollCustomersByMerchantId(
+//				user.getBankMerchantId(), start, count, startTime, endTime, vehicleNumber);
+
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-				.message("Get All Toll Customer list based on just BankId")
-				.data("bankId", httpServletContext.getMerchant().getReferenceId()).format());
+		        .message("Get All Toll Customer list based on MerchantId")
+		        .data("merchantId", user.getBankMerchantId()).format());
 
-		// Getting the all Register user
 		List<TollTag> tollTags = this.tollDBService.findTollCustomersByMerchantId(
-				httpServletContext.getMerchant().getId(), start, count, startTime, endTime, vehicleNumber);
-
+		        user.getBankMerchantId(), start, count, startTime, endTime, vehicleNumber);
+		
 		if (CollectionUtils.isEmpty(tollTags)) {
 			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 					.message(HeaderCode.TOLL_TAG_DOESNT_EXIST.message()).format());
@@ -1020,11 +1036,11 @@ public class TollMerchantResource {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
 
-		Long pendingTagCount = this.tollDBService.countTagByMerchantId(httpServletContext.getMerchant().getId(),
+		Long pendingTagCount = this.tollDBService.countTagByMerchantId(user.getBankMerchantId(),
 				Arrays.asList(Integer.valueOf(TollTagApprovalStatus.BANK_APPROVAL_PENDING.value()).toString()));
 		response.setTagApprovalPendingCounts(pendingTagCount);
 
-		Long rejectedTagCount = this.tollDBService.countOfTags(httpServletContext.getMerchant().getId(),
+		Long rejectedTagCount = this.tollDBService.countOfTags(user.getBankMerchantId(),
 				Arrays.asList(Integer.valueOf(TollTagApprovalStatus.BANK_REJECTED.value()).toString()));
 		response.setTagRejectedCounts(rejectedTagCount);
 		
