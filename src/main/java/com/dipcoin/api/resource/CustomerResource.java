@@ -141,6 +141,10 @@ public class CustomerResource {
 	@Lazy
 	private HttpServletContext httpServletContext;
 	
+	 public void setHttpServletContext(HttpServletContext httpServletContext) {
+		    this.httpServletContext = httpServletContext;
+		  }
+	
 	  public ResponseEntity addPaymentSource(final CreateUserWalletRequest createReq, User oauthUser,
 		      Merchant oauthMerchant, Boolean createUser, TransactionSource source, Map<String, Object> map, String walletBankReferenceId)
 		      throws APIException, Exception {

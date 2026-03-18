@@ -173,6 +173,10 @@ public class CustomerDipcoinResource {
 	@Autowired
 	private BankDBService bankDBService;
 	
+	public void setHttpServletContext(HttpServletContext httpServletContext) {
+	    this.httpServletContext = httpServletContext;
+	}
+	
 	
 	  public DipcoinResource getDipcoinResource() {    
 		    return this.dipcoinResource;
