@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:p="http://www.springframework.org/schema/p" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="
+            http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context-3.0.xsd
+            http://www.springframework.org/schema/util
+                        http://www.springframework.org/schema/util/spring-util-3.0.xsd">
+
+	<!-- scans the classpath for annotated components (including @Repostory 
+		and @Service that will be auto-registered as Spring beans -->
+	<context:component-scan base-package="com.dipcoin" />
+	<bean class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer">
+        <property name="environment">
+            <bean class="org.springframework.web.context.support.StandardServletEnvironment"/>
+        </property>
+    </bean>
+
+	<!-- jdbcTemplate uses dataSource -->
+	<bean id="namedParameterJdbcTemplate"
+		class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate">
+		<constructor-arg ref="dataSource" />
+	</bean>
+
+	<bean id="freemarkerConfiguration"
+		class="org.springframework.ui.freemarker.FreeMarkerConfigurationFactoryBean">
+		<property name="templateLoaderPath" value="classpath:/templates" />
+		<property name="preferFileSystemAccess" value="false" />
+	</bean>
+
+	<bean id="isoMessageFactory" class="com.solab.iso8583.MessageFactory">
+		<property name="assignDate" value="true" />
+		<property name="etx" value="3" />
+		<property name="ignoreLastMissingField" value="true" />
+		<property name="forceSecondaryBitmap" value="true" />
+		<!-- <property name="useBinaryBitmap" value="true" /> -->
+		<property name="configPath" value="WEB-INF/classes/iso8583.xml" />
+	</bean>
+
+	<!-- declare datasource bean -->
+	<beans profile="dev">
+		<bean id="dataSource"
+			class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+			<property name="driverClassName" value="com.mysql.cj.jdbc.Driver" />
+			<property name="url"
+				value="jdbc:mysql://stage-db-new.cf2ik20ms4wt.ap-south-1.rds.amazonaws.com:3306/mockbank?allowMultiQueries=true&amp;useSSL=false&amp;useUnicode=true&amp;useJDBCCompliantTimezoneShift=true&amp;useLegacyDatetimeCode=false&amp;serverTimezone=UTC&amp;createDatabaseIfNotExist=true" />
+			<property name="username" value="dipcoindb" />
+			<property name="password" value="O5taD1pC0in" />
+		</bean>
+	</beans>
+
+	<beans profile="!dev">
+		<bean id="dataSource"
+			class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+			<property name="driverClassName" value="com.mysql.cj.jdbc.Driver" />
+			<property name="url" value="jdbc:mysql:///stage-db-new.cf2ik20ms4wt.ap-south-1.rds.amazonaws.com:3306/mockbank?allowMultiQueries=true&amp;useSSL=false&amp;useUnicode=true&amp;useJDBCCompliantTimezoneShift=true&amp;useLegacyDatetimeCode=false&amp;serverTimezone=UTC&amp;createDatabaseIfNotExist=true" />
+			<property name="username" value="dipcoindb" />
+			<property name="password" value="O5taD1pC0in" />
+		</bean>
+	</beans>
+</beans>
