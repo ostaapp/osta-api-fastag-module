@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xsi:schemaLocation="
+            http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/task
+            http://www.springframework.org/schema/task/spring-task-3.0.xsd
+            http://www.springframework.org/schema/util
+			http://www.springframework.org/schema/util/spring-util-3.0.xsd
+			http://www.springframework.org/schema/context
+    		http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+
+	<context:property-placeholder
+		ignore-unresolvable="true" order="0" local-override="true"
+		location="classpath:dipcoin-api-system-application-${spring.profiles.active}.properties" />
+	<context:property-placeholder
+		ignore-unresolvable="true" order="1"
+		location="classpath:application.properties" />
+
+	<context:annotation-config />
+	<!-- scans the classpath for annotated components including @Repostory and 
+		@Service that will be auto-registered as Spring beans -->
+	<context:component-scan
+		base-package="com.dipcoin" />
+		
+	<bean id="RuleEngine"
+		class="com.dipcoin.api.fraudMgmt.RuleEngine"
+		init-method="init">
+	</bean> 
+
+	<bean id="propertySourcesPlaceholderConfigurer"
+		class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer" />
+
+	<bean
+		class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+		<property name="staticMethod"
+			value="com.dipcoin.tcp.SSLTCPServer.keystorePassword" />
+		<property name="arguments">
+			<list>
+				<value>SelfSigned</value>
+			</list>
+		</property>
+	</bean>
+
+	<!-- Define TCP Factory bean -->
+	<bean id="tcpRequestProcessorFactory"
+		class="org.springframework.beans.factory.config.ServiceLocatorFactoryBean">
+		<property name="serviceLocatorInterface"
+			value="com.dipcoin.tcp.RequestProcessorFactory" />
+	</bean>
+
+	<bean id="tcpConfigProcessorFactory"
+		class="org.springframework.beans.factory.config.ServiceLocatorFactoryBean">
+		<property name="serviceLocatorInterface"
+			value="com.dipcoin.tcp.utils.TCPConfigFactory" />
+	</bean>
+
+	<bean
+		class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+		<property name="staticMethod"
+			value="com.dipcoin.api.resource.NotificationResource.useTestCallbackId" />
+		<property name="arguments">
+			<list>
+				<value>true</value>
+			</list>
+		</property>
+	</bean>
+
+
+	<beans profile="!unit">
+		<import
+			resource="classpath*:dipcoin-api-config-application-context.xml" /> <!-- Load 1st -->
+		<import resource="classpath*:tcp/dipcoin-tcp-*.xml" /> <!-- Import ALL TCP configurations -->
+
+		<beans profile="!dev">
+			<bean id="apiEncryptedPropertiesUtils"
+				class="com.dipcoin.commons.EncryptedPropertiesUtils">
+				<constructor-arg index="0"
+					value="#{systemProperties['ASP']}" />
+			</bean>
+		</beans>
+
+		<beans profile="test">
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.api.config.ApplicationConfig.setTrustedSources" />
+				<property name="arguments">
+					<list>
+						<util:set set-class="java.util.HashSet">
+							<value>https://www.test.dipcoin.com</value>
+						</util:set>
+					</list>
+				</property>
+			</bean>
+		</beans>
+
+		<beans profile="stage">
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.api.config.ApplicationConfig.setTrustedSources" />
+				<property name="arguments">
+					<list>
+						<util:set set-class="java.util.HashSet">
+							<value>https://stage.ostaapp.com</value>
+							<value>https://api-stage-lb.ostaapp.com</value>
+							<value>https://dev001.ostaapp.com</value>
+							<value>https://www-dev001.ostaapp.com</value>
+						</util:set>
+					</list>
+				</property>
+			</bean>
+
+			<!-- API Documentation -->
+			<!--<bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean"> 
+				<property name="staticMethod" value="com.dipcoin.api.config.BootstrapConfig.setApiDocHostPort" 
+				/> <property name="arguments"> <list> <value>ec2-52-27-24-154.us-west-2.compute.amazonaws.com:433 
+				</value> </list> </property> </bean> -->
+		</beans>
+
+		<beans profile="uat">
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.api.config.ApplicationConfig.setTrustedSources" />
+				<property name="arguments">
+					<list>
+						<util:set set-class="java.util.HashSet">
+							<value>https://www.uat.ostaapp.com</value>
+						</util:set>
+					</list>
+				</property>
+			</bean>
+		</beans>
+
+		<beans profile="prod">
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.api.config.ApplicationConfig.setTrustedSources" />
+				<property name="arguments">
+					<list>
+						<util:set set-class="java.util.HashSet">
+							<value>https://www.ostaapp.com</value>
+							<value>https://www.ostaapp.in</value>
+							<value>https://www.ostaapp.co.in</value>
+						</util:set>
+					</list>
+				</property>
+			</bean>
+		</beans>
+
+		<beans profile="uat,prod">
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.api.resource.NotificationResource.useTestCallbackId" />
+				<property name="arguments">
+					<list>
+						<value>false</value>
+					</list>
+				</property>
+			</bean>
+
+			<bean
+				class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+				<property name="staticMethod"
+					value="com.dipcoin.tcp.SSLTCPServer.keystorePassword" />
+				<property name="arguments">
+					<list>
+						<value>4a13vksB3YGMhwDX</value> <!-- @TODO - move to external config -->
+					</list>
+				</property>
+			</bean>
+		</beans>
+	</beans>
+
+	<beans profile="unit">
+		<!-- @NOTE - This was needed for unit test purpose. @TODO move this to 
+			a unit test context. Since RabbitMqConfiguration is not loaded for profile=unit, 
+			define all RabbitMq related mocked beans here -->
+		<bean id="notificationAmqpTemplate" class="org.mockito.Mockito"
+			factory-method="mock">
+			<constructor-arg
+				value="org.springframework.amqp.rabbit.core.RabbitTemplate" />
+		</bean>
+		<bean id="notificationAmqpDirect" class="org.mockito.Mockito"
+			factory-method="mock">
+			<constructor-arg
+				value="org.springframework.amqp.core.DirectExchange" />
+		</bean>
+
+		<!--<bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean"> 
+			<property name="staticMethod" value="com.dipcoin.commons.metrics.Metrics.init" 
+			/> <property name="arguments"> <list> <value>unit</value> <value>30</value> 
+			</list> </property> </bean> -->
+	</beans>
+
+	<!-- @NOTE - refactor uat and prod to talk to cloudwatch -->
+	<beans profile="dev,test,stage,uat,prod">
+		<!-- <bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean"> 
+			<property name="staticMethod" value="com.dipcoin.commons.metrics.Metrics.init" 
+			/> <property name="arguments"> <list> <value>${com.dipcoin.commons.metrics.Metrics.appName}</value> 
+			<value>${com.dipcoin.commons.metrics.Metrics.publishTimeInSeconds} </value> 
+			</list> </property> </bean> -->
+	</beans>
+</beans>

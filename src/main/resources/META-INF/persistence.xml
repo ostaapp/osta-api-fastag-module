@@ -81,6 +81,8 @@
 			<class>com.dipcoin.partner.db.services.model.PaymentGatewayReconFileHistory</class>
 			<class>com.dipcoin.partner.db.services.model.CreditLimit</class>
 			<class>com.dipcoin.partner.db.services.model.UserCards</class>
+			<class>com.dipcoin.db.services.model.DipcoinAccountTransaction</class>
+			<class>com.dipcoin.db.services.model.Settlement</class>
 			
 			<exclude-unlisted-classes>false</exclude-unlisted-classes>
 					

@@ -37,11 +37,15 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
-import org.w3c.dom.Document;
-import org.w3c.dom.NodeList;
+
+import com.dipcoin.api.commons.TollProperties;
+//import org.w3c.dom.Document;
+//import org.w3c.dom.NodeList;
 import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.partner.toll.commons.TollConstant;
-import com.dipcoin.api.commons.TollProperties;
+//import com.dipcoin.partner.toll.commons.TollProperties;
+
+
 
 @Component("tollSignatureVerificationServices")
 public class TollSignatureVerificationServices {
@@ -63,33 +67,33 @@ public class TollSignatureVerificationServices {
     try {
       DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
       dbf.setNamespaceAware(true);
-      Document signedDocument =
-          dbf.newDocumentBuilder().parse(new ByteArrayInputStream(data.getBytes()));
+//      Document signedDocument =
+//          dbf.newDocumentBuilder().parse(new ByteArrayInputStream(data.getBytes()));
+//
+//      NodeList nl = signedDocument.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
+//
+//      if (nl.getLength() == 0) {
+//        verificationResult = false;
+//        return null;
+//      }
 
-      NodeList nl = signedDocument.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
+//      XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
 
-      if (nl.getLength() == 0) {
-        verificationResult = false;
-        return null;
-      }
-
-      XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
-
-      DOMValidateContext valContext =
-          new DOMValidateContext(getPublicKey(traceId, alias), nl.item(0));
-      XMLSignature signature = fac.unmarshalXMLSignature(valContext);
+//      DOMValidateContext valContext =
+//          new DOMValidateContext(getPublicKey(traceId, alias), nl.item(0));
+//      XMLSignature signature = fac.unmarshalXMLSignature(valContext);
 
 
-      verificationResult = signature.validate(valContext);
-
-      LOG.debug(LogFormatter.instance(traceId).message("Incoming Request body signature verification")
-          .data("Verification Result", verificationResult).format());
-
-      nl.item(0).getParentNode().removeChild(nl.item(0));
-
-      TransformerFactory tf = TransformerFactory.newInstance();
-      Transformer trans = tf.newTransformer();
-      trans.transform(new DOMSource(signedDocument), new StreamResult(byteArrayOutputStream));
+//      verificationResult = signature.validate(valContext);
+//
+//      LOG.debug(LogFormatter.instance(traceId).message("Incoming Request body signature verification")
+//          .data("Verification Result", verificationResult).format());
+//
+//      nl.item(0).getParentNode().removeChild(nl.item(0));
+//
+//      TransformerFactory tf = TransformerFactory.newInstance();
+//      Transformer trans = tf.newTransformer();
+//      trans.transform(new DOMSource(signedDocument), new StreamResult(byteArrayOutputStream));
 
 
     } catch (Exception e) {
