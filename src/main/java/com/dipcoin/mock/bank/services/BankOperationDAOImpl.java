@@ -12,6 +12,7 @@ import javax.sql.DataSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.RowMapper;
@@ -29,9 +30,11 @@ public class BankOperationDAOImpl implements BankOperationDAO {
   private SimpleJdbcCall simpleJdbcCall;
   
   @Autowired
+  @Qualifier("mockBankDataSource")
   private DataSource dataSource;
   
   @Autowired
+  @Qualifier("mockBankJdbcTemplate")
   private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
   
   @Autowired

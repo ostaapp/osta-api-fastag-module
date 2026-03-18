@@ -13,6 +13,7 @@ public class ApplicationSecurity extends WebSecurityConfigurerAdapter {
         http
             .csrf().disable() // Disable CSRF for APIs
             .authorizeRequests()
+            .antMatchers("/mock/bank/**").permitAll() // Allow mock bank endpoints
             .antMatchers("/api/**").permitAll() // Modify as per your needs
             .antMatchers("/actuator/**").permitAll() // Allow all actuator endpoints
             .antMatchers("/actuator/health/**").permitAll() // Allow health endpoints

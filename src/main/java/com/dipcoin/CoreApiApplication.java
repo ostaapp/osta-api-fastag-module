@@ -30,7 +30,6 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
         "classpath*:dipcoin-db-services-fastag.xml",
         "classpath*:dipcoin-partner-services-application-context.xml",
         "classpath*:partner-db-services-application-context.xml",
-        "classpath*:mock-bank-system-application-context.xml",
         "classpath*:dipcoin-api-system-application-context.xml"
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)

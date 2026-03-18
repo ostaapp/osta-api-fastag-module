@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dipcoin.mock.bank.model.MarkLienRequest;
 import com.dipcoin.mock.bank.model.MarkLienResponse;
+import com.dipcoin.mock.bank.model.RemoveLienRequest;
+import com.dipcoin.mock.bank.model.RemoveLienResponse;
 import com.dipcoin.mock.bank.model.TransactionData;
 import com.dipcoin.mock.bank.services.BankOperationDAO;
 import com.dipcoin.mock.bank.services.TransactionDAOImpl;
@@ -66,6 +68,33 @@ public class BankApplicationService {
 			LOG.debug("Mark Lien Response:", markLienResponse.getBankResponseCode() + "  "
 					+ markLienResponse.getBankResponseCode() + "  " + markLienResponse.getBankResponseDesc());
 			return ResponseEntity.ok().body(markLienResponse);
+		} catch (Exception e) {
+			LOG.error("Error", e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+		}
+	}
+	
+	@PostMapping({ "/removelien" })
+	@ApiOperation(value = "Remove Lien Request", notes = "API to Remove Lien Request", response = RemoveLienResponse.class)
+	public ResponseEntity removeLien(@RequestBody RemoveLienRequest removeLienRequest) {
+		try {
+			LOG.debug("Remove Lien Request: " + removeLienRequest.toString());
+			String bankTransactionReferenceNumber = RandomGenerator.generateRandom();
+			String responseTime = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
+			TransactionData transactionData = new TransactionData();
+			transactionData.setTransactionReferenceNumber(bankTransactionReferenceNumber);
+			transactionData.setDipcoinRefNumber(removeLienRequest.getDipcoinReferenceNumber());
+			transactionData.setTransactionResTime(responseTime);
+			transactionData.setRawRequest(removeLienRequest.toString());
+			this.transactionDAO.addTransactionDetails(transactionData);
+			RemoveLienResponse removeLienResponse = this.bankOperationDAO.removeLien(removeLienRequest,
+					transactionData);
+			removeLienResponse.setTransactionTime(responseTime);
+			removeLienResponse.setBankTransactionReferenceNumber(bankTransactionReferenceNumber);
+			removeLienResponse.setDipcoinReferenceNumber(removeLienRequest.getDipcoinReferenceNumber());
+			LOG.debug("Remove Lien Response:", removeLienResponse.getBankResponseCode() + "  "
+					+ removeLienResponse.getBankResponseCode() + "  " + removeLienResponse.getBankResponseDesc());
+			return ResponseEntity.ok().body(removeLienResponse);
 		} catch (Exception e) {
 			LOG.error("Error", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);

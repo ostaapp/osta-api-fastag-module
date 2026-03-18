@@ -82,7 +82,7 @@ public class AuthorizationInterceptor implements RequestInterceptor {
             "/v1/bank/user/verify/email", "/v1/brontoo/user/verify/email", "/v1/customer/user/verify/account",
             "/successManageTagEntry", "/NETCNotification", "/declineManageTagEntry", "/RespVehicleDetails",
             "/tagEntryServiceResponse","/v1/customer/bill/oauth2/token","/v1/customer/bill/oauth2/addMoney/user", "/v1/customer/user/jwt/login", "/v1/customer/user/jwt/refresh", "/v1/customer/user/jwt/logout"
-            ,"/v1/jwt/customer/bill/oauth2/addMoney/user","/v1/jwt/customer/bill/oauth2/token"));
+            ,"/v1/jwt/customer/bill/oauth2/addMoney/user","/v1/jwt/customer/bill/oauth2/token", "/mock/bank/marklien", "/mock/bank/removelien"));
   }
   private static final List<String> ADMIN_OLNY_PATHS = Arrays.asList("/v1/admin/.*", "/v1/system/.*");
   private boolean isSourceWeb;

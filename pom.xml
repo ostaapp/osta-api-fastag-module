@@ -234,6 +234,14 @@
             <artifactId>spring-boot-maven-plugin</artifactId>
             <configuration>
                 <layout>ZIP</layout>
+                <jvmArguments>
+                    --add-exports java.xml/com.sun.org.apache.xerces.internal.dom=ALL-UNNAMED
+                    --add-exports java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED
+                    --add-opens java.xml/javax.xml.parsers=ALL-UNNAMED
+                    --add-opens java.xml/javax.xml.transform=ALL-UNNAMED
+                    --add-opens java.xml/javax.xml.transform.dom=ALL-UNNAMED
+                    --add-opens java.xml/javax.xml.transform.stream=ALL-UNNAMED
+                </jvmArguments>
             </configuration>
         </plugin>
 

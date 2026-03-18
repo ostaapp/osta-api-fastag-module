@@ -11,6 +11,17 @@
             http://www.springframework.org/schema/context
             http://www.springframework.org/schema/context/spring-context-3.0.xsd">
 
+	<!-- Load properties for placeholder resolution -->
+	<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>
+				<value>classpath:dipcoin-ebank-services-dev.properties</value>
+				<value>classpath:dipcoin-ebank-services-B208801000370.properties</value>
+			</list>
+		</property>
+		<property name="ignoreUnresolvablePlaceholders" value="true" />
+	</bean>
+
 	<!-- ================================ -->
 	<!-- Define static mappings -->
 	<!--<bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean"> 
@@ -1264,8 +1275,8 @@
 	<bean id="B208801000370UserAuthenticationType0"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="localhost" />
+		<constructor-arg index="1" value="6443" />
 
 		<property name="uri"
 			value="mock/bank/authorizeuser?bankID=B208801000370" />
@@ -1284,8 +1295,8 @@
 	<bean id="B208801000370UserAuthentication"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="localhost" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/authorizeuser?bankID=B208801000370" />
@@ -1304,8 +1315,8 @@
 	<bean id="B208801000370VerifyOTP"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/verifyotp?bankID=B208801000370" />
@@ -1324,8 +1335,8 @@
 	<bean id="B208801000370ResendOTP"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/resendotp?bankID=B208801000370" />
@@ -1342,10 +1353,10 @@
 	</bean>
 
 	<bean id="B208801000370MarkLien"
-		class="com.dipcoin.bank.services.client.BankHTTPSClient">
+		class="com.dipcoin.bank.services.client.BankHTTPClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="localhost" />
+		<constructor-arg index="1" value="6443" />
 
 		<property name="uri"
 			value="mock/bank/marklien?bankID=B208801000370" />
@@ -1364,8 +1375,8 @@
 	<bean id="B208801000370RemoveLien"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/removelien?bankID=B208801000370" />
@@ -1384,8 +1395,8 @@
 	<bean id="B208801000370CustomerFundTransfer"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/customer/fundtransfer?bankID=B208801000370" />
@@ -1404,8 +1415,8 @@
 	<bean id="B208801000370AccountFundTransfer"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/account/fundtransfer?bankID=B208801000370" />
@@ -1424,8 +1435,8 @@
 	<bean id="B208801000370DeleteAccount"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/deleteaccount?bankID=B208801000370" />
@@ -1444,8 +1455,8 @@
 	<bean id="B208801000370RemoveLienAndDebitToAccount"
 		class="com.dipcoin.bank.services.client.BankHTTPSClient">
 		<constructor-arg index="0"
-			value="api-stage.ostaapp.com" />
-		<constructor-arg index="1" value="9444" />
+			value="${com.dipcoin.bank.services.client.host.mockbank}" />
+		<constructor-arg index="1" value="${com.dipcoin.bank.services.client.port.mockbank}" />
 
 		<property name="uri"
 			value="mock/bank/removeliendebit?bankID=B208801000370" />
@@ -1571,8 +1582,12 @@
 
 	<bean id="B208801000370Properties"
 		class="com.dipcoin.bank.services.utils.BankProperties">
-		<property name="locations"
-			value="classpath:dipcoin-ebank-services-B208801000370.properties" />
+		<property name="locations">
+			<list>
+				<value>classpath:dipcoin-ebank-services-dev.properties</value>
+				<value>classpath:dipcoin-ebank-services-B208801000370.properties</value>
+			</list>
+		</property>
 		<property name="ignoreUnresolvablePlaceholders" value="true" />
 	</bean>
 

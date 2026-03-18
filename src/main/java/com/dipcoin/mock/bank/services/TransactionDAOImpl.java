@@ -7,6 +7,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -21,6 +22,7 @@ public class TransactionDAOImpl implements TransactionDAO {
 	private static final Logger LOG = LogManager.getLogger(com.dipcoin.mock.bank.services.TransactionDAOImpl.class);
 
 	@Autowired
+	@Qualifier("mockBankJdbcTemplate")
 	private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
 	public NamedParameterJdbcTemplate getNamedParameterJdbcTemplate() {
