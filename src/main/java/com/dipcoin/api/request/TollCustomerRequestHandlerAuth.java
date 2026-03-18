@@ -298,10 +298,10 @@ public class TollCustomerRequestHandlerAuth {
 			@ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(value = "endTime", defaultValue = "2147483646999") Long endTime,
 			@ApiParam(value = "vehicleNumber", required = false) @RequestParam(value = "vehicleNumber", required = false) String vehicleNumber,
 			@ApiParam(value = "Start", required = false, defaultValue = "0") @RequestParam(value = "start", defaultValue = "0") Integer start,
-			@ApiParam(value = "Count", required = false, defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count,
-			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			@ApiParam(value = "Count", required = false, defaultValue = "100") @RequestParam(value = "count", defaultValue = "100") Integer count)
 			throws Exception {
+		
+		System.out.println("Received request for toll transactions with parameters - startTime: " + startTime + ", endTime: " + endTime + ", vehicleNumber: " + vehicleNumber + ", start: " + start + ", count: " + count);
 
 		return tollServicesResource.getTollTransactions(httpServletContext.getUser(), startTime, endTime, start, count,
 				vehicleNumber);

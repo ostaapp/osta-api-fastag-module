@@ -4562,52 +4562,147 @@ public class TollCustomerResource {
 	public ResponseEntity getTollTransactions(User user, Long startTime, Long endTime, Integer start, Integer count,
 			String vehicleNumber) throws Exception {
 
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			.message("getTollTransactions - Method started")
+			.data("UserId", user != null ? user.getId() : null)
+			.data("StartTime", startTime)
+			.data("EndTime", endTime)
+			.data("Start", start)
+			.data("Count", count)
+			.data("VehicleNumber", vehicleNumber)
+			.format());
+
 		if (user == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - User is null")
+				.format());
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(APIResponse.error(HeaderCode.USER_DOESNT_EXIST));
 		}
 
 		if (!this.userDBService.isActive(user)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - User is not active")
+				.data("UserId", user.getId())
+				.data("UserStatus", user.getStatus())
+				.format());
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
+
 		List<String> vehicleNumbers = new ArrayList<>();
 		if (StringUtils.isNotEmpty(vehicleNumber)) {
-
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Using provided vehicle number")
+				.data("VehicleNumber", vehicleNumber)
+				.format());
 			vehicleNumbers.add(vehicleNumber);
 		} else {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Fetching toll registrations for user")
+				.data("UserId", user.getId())
+				.format());
 
 			List<TollRegistration> tollRegs = tollDBService.findTollCustomersByUserId(user.getId());
 
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Toll registrations fetched")
+				.data("UserId", user.getId())
+				.data("TollRegistrationsCount", tollRegs != null ? tollRegs.size() : 0)
+				.format());
+
 			if (CollectionUtils.isEmpty(tollRegs)) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("getTollTransactions - No toll registrations found for user")
+					.data("UserId", user.getId())
+					.format());
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 						.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
 			}
 
+			int totalTollTags = 0;
 			for (TollRegistration tollReg : tollRegs) {
-				for (TollTag tollTag : tollReg.getTollTag()) {
-					vehicleNumbers.add(tollTag.getRegistrationNo());
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("getTollTransactions - Processing toll registration")
+					.data("TollRegistrationId", tollReg.getId())
+					.data("TollTagsCount", tollReg.getTollTag() != null ? tollReg.getTollTag().size() : 0)
+					.format());
+				
+				if (tollReg.getTollTag() != null) {
+					totalTollTags += tollReg.getTollTag().size();
+					for (TollTag tollTag : tollReg.getTollTag()) {
+						vehicleNumbers.add(tollTag.getRegistrationNo());
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("getTollTransactions - Added vehicle number")
+							.data("TollTagId", tollTag.getId())
+							.data("RegistrationNo", tollTag.getRegistrationNo())
+							.format());
+					}
 				}
 			}
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Vehicle numbers extraction completed")
+				.data("TotalTollRegistrations", tollRegs.size())
+				.data("TotalTollTags", totalTollTags)
+				.data("VehicleNumbersCount", vehicleNumbers.size())
+				.format());
 		}
 
 		if (CollectionUtils.isEmpty(vehicleNumbers)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - No vehicle numbers found")
+				.data("UserId", user.getId())
+				.format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
 		}
 
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			.message("getTollTransactions - Fetching toll tags by registration numbers")
+			.data("VehicleNumbers", vehicleNumbers)
+			.format());
+
 		List<TollTag> tollTags = tollDBService.findTollTagByRegistrationNo(vehicleNumbers);
 
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			.message("getTollTransactions - Toll tags fetched")
+			.data("VehicleNumbersCount", vehicleNumbers.size())
+			.data("TollTagsCount", tollTags != null ? tollTags.size() : 0)
+			.format());
+
 		if (CollectionUtils.isEmpty(tollTags)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - No toll tags found for vehicle numbers")
+				.data("UserId", user.getId())
+				.data("VehicleNumbers", vehicleNumbers)
+				.format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
 		}
 
 		Bank bank = bankDBService.getBank(tollTags.get(tollTags.size() - 1).getBankId());
 
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			.message("getTollTransactions - Bank fetched")
+			.data("BankId", tollTags.get(tollTags.size() - 1).getBankId())
+			.data("BankExists", bank != null)
+			.format());
+
 		if (bank == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Bank not found")
+				.data("BankId", tollTags.get(tollTags.size() - 1).getBankId())
+				.format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
 		}
+
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			.message("getTollTransactions - Calling tollServiceBankResource.getTollTransactions")
+			.data("UserId", user.getId())
+			.data("BankId", bank.getId())
+			.data("VehicleNumbersCount", vehicleNumbers.size())
+			.format());
 
 		return tollServiceBankResource.getTollTransactions(user, bank, startTime, endTime, start, count, null,
 				vehicleNumbers, null);

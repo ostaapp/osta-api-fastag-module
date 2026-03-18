@@ -3697,13 +3697,36 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 
 			List<String> orderIds = new ArrayList<>();
 			for (TollTag tolltag : tollTags) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("getTollTransactions - Processing TollTag for orderIds")
+					.data("TollTagId", tolltag.getId())
+					.data("TagId", tolltag.getTagId())
+					.data("Status", tolltag.getStatus())
+					.data("RegistrationNo", tolltag.getRegistrationNo())
+					.format());
+				
 				if (StringUtils.isNotBlank(tolltag.getTagId())) {
 					orderIds.add(tolltag.getTagId());
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("getTollTransactions - Added TagId to orderIds")
+						.data("TagId", tolltag.getTagId())
+						.format());
 				} else if (Integer.parseInt(tolltag.getStatus()) == TollTagApprovalStatus.ACTIVE.value()) {
 					tollTag = tolltag;
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("getTollTransactions - Set active TollTag as primary")
+						.data("TollTagId", tolltag.getId())
+						.format());
 				}
 
 			}
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - OrderIds creation completed")
+				.data("TotalTollTags", tollTags.size())
+				.data("OrderIdsCount", orderIds.size())
+				.data("OrderIds", orderIds)
+				.format());
 
 			if (StringUtils.isEmpty(tollTag.getSerialNumber())) {
 				Epc epc = tollDBService.findEpcByTagId(tollTag.getTagId());
@@ -3731,12 +3754,30 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 			}
 			List<Integer> customerAccountIds = customerDBService.getCustomerAccountIdsByBankID(bank.getId());
 			
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Customer accounts fetched")
+				.data("BankId", bank.getId())
+				.data("CustomerAccountIdsCount", customerAccountIds != null ? customerAccountIds.size() : 0)
+				.format());
+			
 			if(CollectionUtils.isEmpty(customerAccountIds)) {
 				LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch customerAccounts")
+						.data("BankId", bank.getId())
 						.format());
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 						.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
 			}
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - Calling getFatagTxnRecon")
+				.data("OrderIdsCount", orderIds != null ? orderIds.size() : 0)
+				.data("OrderIds", orderIds)
+				.data("StartTime", startTime)
+				.data("EndTime", endTime)
+				.data("CustomerAccountIds", customerAccountIds)
+				.data("Start", start)
+				.data("Count", count)
+				.format());
 			
 			List<DipcoinTransaction> dTxns = dipcoinDBService.getFatagTxnRecon(orderIds, startTime, endTime,
 					Arrays.asList(DipcoinTransactionType.COMPLETELY_USED.value(),
@@ -3746,9 +3787,21 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 					customerAccountIds, DipcoinTransactionsStatus.SUCCESS.value(),
 					TransactionSource.TOLL.value(), start, count);
 
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollTransactions - DipcoinTransaction results")
+				.data("OrderIdsCount", orderIds != null ? orderIds.size() : 0)
+				.data("CustomerAccountIdsCount", customerAccountIds != null ? customerAccountIds.size() : 0)
+				.data("DipcoinTransactionsCount", dTxns != null ? dTxns.size() : 0)
+				.format());
+
 			if (CollectionUtils.isEmpty(dTxns)) {
 				LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Failed fetch toll txn")
-						.data("Vehicle Number", vehicleNumber).format());
+						.data("Vehicle Number", vehicleNumber)
+						.data("OrderIds", orderIds)
+						.data("CustomerAccountIds", customerAccountIds)
+						.data("StartTime", startTime)
+						.data("EndTime", endTime)
+						.format());
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 						.body(APIResponse.error(HeaderCode.TRANSACTION_NOT_FOUND));
 
