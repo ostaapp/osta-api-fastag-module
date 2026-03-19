@@ -60,6 +60,24 @@
 		</bean>
 	</beans>
 
+	<beans profile="dev">
+		<!-- Override partner-db-services dev datasource to use the partner schema,
+		     which contains partner-only tables like CardRegex. -->
+		<bean id="partnerDataSource"
+			class="com.mchange.v2.c3p0.ComboPooledDataSource"
+			destroy-method="close">
+			<property name="driverClass"
+				value="com.mysql.cj.jdbc.Driver" />
+			<property name="jdbcUrl"
+				value="jdbc:mysql://stage-db-new.cf2ik20ms4wt.ap-south-1.rds.amazonaws.com:3306/partner?allowMultiQueries=true&amp;useSSL=false&amp;useUnicode=true&amp;useJDBCCompliantTimezoneShift=true&amp;useLegacyDatetimeCode=false&amp;serverTimezone=UTC&amp;allowPublicKeyRetrieval=true" />
+			<property name="user"
+				value="dipcoindb" />
+			<property name="password"
+				value="O5taD1pC0in" />
+			<property name="preferredTestQuery" value="SELECT 1" />
+		</bean>
+	</beans>
+
 	<beans profile="!unit">
 		<!-- Import ALL recharge configurations -->
 		<import
