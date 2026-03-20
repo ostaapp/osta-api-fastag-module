@@ -405,7 +405,25 @@ public class TollBankResource {
 		}
 		Integer bankId = bank.getId();
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("getTollCustomerDetails - Input Parameters")
+				.data("bankId", bankId)
+				.data("bankReferenceId", bankReferenceId)
+				.data("status", status)
+				.data("vehicleNumber", vehicleNumber)
+				.data("accountNumber", accountNumber)
+				.data("serialNumber", serialNumber)
+				.data("startTime", startTime)
+				.data("endTime", endTime)
+				.data("start", start)
+				.data("count", count)
+				.data("phone", phone)
+				.data("branchCode", branchCode)
+				.format());
+
 		if (phone != null || branchCode != null) {
+			LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Routing to filterTollTags due to phone or branchCode").format());
 			return filterTollTags(user, bank, bankId, phone, branchCode, status, startTime, endTime, start, count);
 		}
 
@@ -419,8 +437,19 @@ public class TollBankResource {
 			// Getting the all Register user
 			List<TollTag> tollTags;
 			if (vehicleNumber != null) {
+				LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Searching by vehicleNumber")
+						.data("vehicleNumber", vehicleNumber)
+						.data("bankId", bankId)
+						.data("status", status)
+						.format());
 				tollTags = this.tollDBService.findTollCustomersByBankId(bankId, status, start, count, startTime,
 						endTime, vehicleNumber);
+				LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Query result for vehicleNumber search")
+						.data("resultCount", tollTags != null ? tollTags.size() : 0)
+						.data("isEmpty", CollectionUtils.isEmpty(tollTags))
+						.format());
 			} else if (accountNumber != null) {
 				tollTags = this.tollDBService.findTollCustomersByBankIdAndAccountNumber(bankId, status, start, count,
 						startTime, endTime, accountNumber);
@@ -452,6 +481,10 @@ public class TollBankResource {
 			}
 
 			if (!CollectionUtils.isEmpty(tollTags)) {
+				LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Found toll tags, preparing response")
+						.data("tagCount", tollTags.size())
+						.format());
 
 				List<APIResponse> listresponses = new LinkedList<APIResponse>();
 				for (TollTag tollTag : tollTags) {
@@ -484,6 +517,14 @@ public class TollBankResource {
 				return ResponseEntity.status(HttpStatus.OK).body(tagResponses);
 
 			}
+			LOG.warn(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("No toll tags found - returning TC-047 error")
+					.data("vehicleNumber", vehicleNumber)
+					.data("accountNumber", accountNumber)
+					.data("serialNumber", serialNumber)
+					.data("bankId", bankId)
+					.data("status", status)
+					.format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.TOLL_VEHICLE_REG_NO_NOT_PRESENT));
 
@@ -645,6 +686,19 @@ public class TollBankResource {
 	public ResponseEntity updateTollCustomerByVendor(final User user, final Bank bank, final TollTagRequest updateReq,
 			final String clientTransactionId) throws Exception, APIException {
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("updateTollCustomerByVendor - START")
+				.data("userId", user.getId())
+				.data("bankId", bank.getId())
+				.data("bankIIN", bank.getIin())
+				.data("clientTransactionId", clientTransactionId)
+				.data("requestId", updateReq.getId())
+				.data("requestSerialNumber", updateReq.getSerialNumber())
+				.data("requestIIN", updateReq.getIin())
+				.data("requestRegistrationNo", updateReq.getRegistrationNo())
+				.data("requestStatus", updateReq.getStatus())
+				.format());
+
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Request", updateReq).format());
 
 		String originIp = httpServletContext.getOriginIp();
@@ -738,12 +792,47 @@ public class TollBankResource {
 
 		serialNumberLock.lock(60, TimeUnit.SECONDS);
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Looking up EPC by serial number")
+				.data("serialNumber", updateReq.getSerialNumber())
+				.format());
+
 		Epc epc = this.tollDBService.findEpcBySerialNumber(updateReq.getSerialNumber());
 
 		if (epc == null) {
-			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-					.message("EPC Serial Number not linked with iin").data("iin", updateReq.getIin())
-					.data("serialNumber", updateReq.getSerialNumber()).format());
+			LOG.warn(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("EPC NOT FOUND - Serial Number not linked with iin")
+					.data("requestedIIN", updateReq.getIin())
+					.data("bankIIN", bank.getIin())
+					.data("serialNumber", updateReq.getSerialNumber())
+					.data("errorCode", "N-264")
+					.format());
+			removeLock(userProfileLock, serialNumberLock);
+
+			response.addHeaderCode(HeaderCode.IIN_FROM_TAG_ID_DOES_N0T_MATCH_PAYER_IIN);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+		}
+
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("EPC FOUND - Validating IIN")
+				.data("epcId", epc.getId())
+				.data("epcIIN", epc.getIin())
+				.data("epcSerialNumber", epc.getSerialNumber())
+				.data("epcStatus", epc.getStatus())
+				.data("requestedIIN", updateReq.getIin())
+				.data("bankIIN", bank.getIin())
+				.data("iinMatch", epc.getIin() != null && epc.getIin().equals(bank.getIin()))
+				.format());
+
+		if (epc.getIin() == null || !epc.getIin().equals(bank.getIin())) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("IIN MISMATCH - EPC IIN does not match Bank IIN")
+					.data("epcIIN", epc.getIin())
+					.data("bankIIN", bank.getIin())
+					.data("requestedIIN", updateReq.getIin())
+					.data("serialNumber", updateReq.getSerialNumber())
+					.data("errorCode", "N-264")
+					.format());
 			removeLock(userProfileLock, serialNumberLock);
 
 			response.addHeaderCode(HeaderCode.IIN_FROM_TAG_ID_DOES_N0T_MATCH_PAYER_IIN);
@@ -776,30 +865,87 @@ public class TollBankResource {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Fetching TollTag by ID")
+				.data("tollTagId", updateReq.getId())
+				.format());
+		
 		TollTag tollTag = this.tollDBService.findTollTagById(updateReq.getId());
 
 		if (tollTag == null) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("VALIDATION FAILED: TollTag not found")
+					.data("requestedTollTagId", updateReq.getId())
+					.data("errorCode", HeaderCode.TOLL_TAG_DOESNT_EXIST.code())
+					.format());
 			removeLock(userProfileLock, serialNumberLock);
 			response.addHeaderCode(HeaderCode.TOLL_TAG_DOESNT_EXIST);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
+		
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("TollTag found successfully")
+				.data("tollTagId", tollTag.getId())
+				.data("currentStatus", tollTag.getStatus())
+				.data("registrationNo", tollTag.getRegistrationNo())
+				.data("tagId", tollTag.getTagId())
+				.data("tid", tollTag.getTid())
+				.data("serialNumber", tollTag.getSerialNumber())
+				.data("bankId", tollTag.getBankId())
+				.data("customerAccountId", tollTag.getCustomerAccountId())
+				.format());
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Checking for existing active tags with same registration number")
+				.data("registrationNo", tollTag.getRegistrationNo())
+				.data("bankId", bank.getId())
+				.format());
+		
 		List<TollTag> tollTagByRegistrationNoAndBankId = this.tollDBService
 				.findTollTagByRegistrationNoAndBankId(tollTag.getRegistrationNo(), bank.getId());
 
 		if (!CollectionUtils.isEmpty(tollTagByRegistrationNoAndBankId)) {
+			LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Found existing tags with same registration number")
+					.data("count", tollTagByRegistrationNoAndBankId.size())
+					.format());
+			
 			for (TollTag t : tollTagByRegistrationNoAndBankId) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Checking existing tag")
+						.data("existingTagId", t.getId())
+						.data("existingTagStatus", t.getStatus())
+						.format());
+				
 				if (t.getStatus().equals(String.valueOf(TollTagApprovalStatus.ACTIVE.value()))) {
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("VALIDATION FAILED: Active tag already exists for this registration number")
+							.data("existingActiveTagId", t.getId())
+							.data("registrationNo", tollTag.getRegistrationNo())
+							.data("errorCode", "TC-1000")
+							.format());
 					response.addHeaderCode("TC-1000", "Active tolltag already present");
 					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 				}
 			}
 		}
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Validating tag status is BANK_APPROVAL_PENDING")
+				.data("currentStatus", tollTag.getStatus())
+				.data("expectedStatus", TollTagApprovalStatus.BANK_APPROVAL_PENDING.value())
+				.data("statusMatch", TollTagApprovalStatus.BANK_APPROVAL_PENDING.value() == Integer.parseInt(tollTag.getStatus()))
+				.format());
+		
 		if (TollTagApprovalStatus.BANK_APPROVAL_PENDING.value() != Integer.parseInt(tollTag.getStatus())) {
-			removeLock(userProfileLock, serialNumberLock);
-			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Tag is already activated")
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("VALIDATION FAILED: Tag status is not BANK_APPROVAL_PENDING")
+					.data("currentStatus", tollTag.getStatus())
+					.data("currentStatusName", getStatusName(Integer.parseInt(tollTag.getStatus())))
+					.data("expectedStatus", TollTagApprovalStatus.BANK_APPROVAL_PENDING.value())
+					.data("errorCode", HeaderCode.TOLL_TAG_PROFILE_ALREADY_ACTIVATED.code())
 					.format());
+			removeLock(userProfileLock, serialNumberLock);
 			response.addHeaderCode(HeaderCode.TOLL_TAG_PROFILE_ALREADY_ACTIVATED);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
@@ -810,6 +956,11 @@ public class TollBankResource {
 
 		// it should get called before setter of tollTag obj other wise this will never
 		// give null obj
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Checking if EPC RFID tag is already assigned to another toll tag")
+				.data("epcRfidTag", epc.getRfidTag())
+				.format());
+		
 		TollTag tolltag = tollDBService.findTollCustomersByTagId(epc.getRfidTag());
 		TagNPCIApprovalStatus tagNPCIApprovalStatus = new TagNPCIApprovalStatus();
 
@@ -869,8 +1020,14 @@ public class TollBankResource {
 
 		if (/* isTagIdBlank && */ tolltag != null) {
 
-			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-					.message("tag already in db for Id " + tolltag.getId()).format());
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("VALIDATION FAILED: Serial number already assigned to another tag")
+					.data("existingTollTagId", tolltag.getId())
+					.data("existingTagStatus", tolltag.getStatus())
+					.data("existingRegistrationNo", tolltag.getRegistrationNo())
+					.data("epcRfidTag", epc.getRfidTag())
+					.data("errorCode", HeaderCode.TOLL_SERIAL_NUMBER_USED.code())
+					.format());
 
 			removeLock(userProfileLock, serialNumberLock);
 
@@ -883,10 +1040,21 @@ public class TollBankResource {
 				.format());
 		tollRegistration = tollTag.getTollRegistration();
 
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Validating EPC status and delivery type")
+				.data("epcStatus", epc.getStatus())
+				.data("miscCharges", tollTag.getMiscCharges())
+				.data("isHandDelivery", tollTag.getMiscCharges() == TagDeliveryType.HAND_DELIVERY.value())
+				.format());
+		
 		if (tollTag.getMiscCharges() != TagDeliveryType.HAND_DELIVERY.value()
 				&& epc.getStatus() == DBConstants.EpcStatus.USED.value()) {
-			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-					.message(HeaderCode.TOLL_SERIAL_NUMBER_USED.message()).format());
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("VALIDATION FAILED: EPC already used and not hand delivery")
+					.data("epcStatus", epc.getStatus())
+					.data("epcSerialNumber", epc.getSerialNumber())
+					.data("errorCode", HeaderCode.TOLL_SERIAL_NUMBER_USED.code())
+					.format());
 
 			removeLock(userProfileLock, serialNumberLock);
 
@@ -895,10 +1063,23 @@ public class TollBankResource {
 		}
 
 		// Validation of the Created of the Tag cannot be approver at Bank end.
+		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+				.message("Validating maker-checker rule")
+				.data("approvingUserId", user.getId())
+				.data("createdByUserId", tollRegistration != null ? tollRegistration.getCreatedBy() : null)
+				.data("approvingUserRole", user.getRole())
+				.data("isSameUser", tollRegistration != null && user.getId() == tollRegistration.getCreatedBy())
+				.format());
+		
 		if (tollRegistration != null && user.getId() == tollRegistration.getCreatedBy()
 				&& !UserRoles.merchantUserRoles().contains(user.getRole())) {
-			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
-					.message("Attempt to appprove tag by the creator").format());
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("VALIDATION FAILED: Maker-checker violation - creator cannot approve")
+					.data("userId", user.getId())
+					.data("userRole", user.getRole())
+					.data("createdBy", tollRegistration.getCreatedBy())
+					.data("errorCode", HeaderCode.TOLL_ISSUER_CANNOT_BE_APPROVER.code())
+					.format());
 
 			removeLock(userProfileLock, serialNumberLock);
 
@@ -4099,6 +4280,18 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 
 		return ResponseEntity.ok(tollTransactionsReportResponse);
 
+	}
+	
+	/**
+	 * Helper method to get human-readable status name from status code
+	 */
+	private String getStatusName(int statusCode) {
+		for (TollTagApprovalStatus status : TollTagApprovalStatus.values()) {
+			if (status.value() == statusCode) {
+				return status.name();
+			}
+		}
+		return "UNKNOWN(" + statusCode + ")";
 	}
 	
 	
