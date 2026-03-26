@@ -3419,6 +3419,13 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 	public ResponseEntity updateTollCustomerByBank(final User user, final Bank bank, final TollTagRequest updateReq,
 			final String clientTransactionId) throws Exception, APIException {
 
+		System.out.println("[DEBUG] ========== updateTollCustomerByBank STARTED ==========");
+		System.out.println("[DEBUG] User ID: " + (user != null ? user.getId() : "NULL"));
+		System.out.println("[DEBUG] Bank ID: " + (bank != null ? bank.getId() : "NULL"));
+		System.out.println("[DEBUG] TollTag ID: " + (updateReq != null ? updateReq.getId() : "NULL"));
+		System.out.println("[DEBUG] ApprovalFlag: " + (updateReq != null ? updateReq.getApprovalFlag() : "NULL"));
+		System.out.println("[DEBUG] ClientTransactionId: " + clientTransactionId);
+		
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Request", updateReq).format());
 
 		String originIp = httpServletContext.getOriginIp();
@@ -3428,46 +3435,66 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 
 		// Checking for the clientTransactionID is null
 		if (clientTransactionId == null) {
+			System.out.println("[DEBUG] ERROR: clientTransactionId is NULL");
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.body(APIResponse.error(HeaderCode.MISSING_CLIENTTRANSACTIONID));
 		}
+		System.out.println("[DEBUG] Step 1: clientTransactionId validation PASSED");
 
 		// checking for the request null
 		if (updateReq == null) {
+			System.out.println("[DEBUG] ERROR: updateReq is NULL");
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BAD_REQUEST));
 		}
+		System.out.println("[DEBUG] Step 2: updateReq validation PASSED");
 
 		if (bank == null) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.BANK_DOESNT_EXISTS));
 		}
 
 		if (!userDBService.isBankSuperAdmin(user) && !userDBService.isBankTransactor(user)) {
+			System.out.println("[DEBUG] ERROR: User is neither BankSuperAdmin nor BankTransactor");
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
 		}
+		System.out.println("[DEBUG] Step 4: User role validation PASSED (isBankSuperAdmin or isBankTransactor)");
 		if (!this.userDBService.isActive(user)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
 		}
 
 		if (!this.bankDBService.isActive(bank)) {
+			System.out.println("[DEBUG] ERROR: Bank is NOT ACTIVE");
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.BANK_NOT_ACTIVE));
 		}
+		System.out.println("[DEBUG] Step 6: Bank active status PASSED");
 
 		if (StringUtils.isBlank(updateReq.getApprovalFlag())) {
+			System.out.println("[DEBUG] ERROR: ApprovalFlag is BLANK");
 			response.addHeaderCode(HeaderCode.TOLL_USER_DETAILS_CANNOT_UPDATE);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
+		System.out.println("[DEBUG] Step 7: ApprovalFlag validation PASSED");
 
 		TollTag tollTag = this.tollDBService.findTollTagById(updateReq.getId());
+		System.out.println("[DEBUG] Step 8: TollTag fetched - ID: " + (tollTag != null ? tollTag.getId() : "NULL"));
 
 		if (tollTag == null) {
+			System.out.println("[DEBUG] ERROR: TollTag NOT FOUND for ID: " + updateReq.getId());
 			response.addHeaderCode(HeaderCode.TOLL_TAG_DOESNT_EXIST);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
+		System.out.println("[DEBUG] TollTag Details - RegistrationNo: " + tollTag.getRegistrationNo() + ", Status: " + tollTag.getStatus());
 
 		TollRegistration tollRegistration = tollTag.getTollRegistration();
+		System.out.println("[DEBUG] Step 9: TollRegistration fetched - ID: " + (tollRegistration != null ? tollRegistration.getId() : "NULL"));
 
-		if (BankTagStatus.APPROVE.equals(Integer.parseInt(updateReq.getApprovalFlag()))) {
+		int approvalFlagValue = Integer.parseInt(updateReq.getApprovalFlag());
+		System.out.println("[DEBUG] Step 10: Checking ApprovalFlag value: " + approvalFlagValue);
+		System.out.println("[DEBUG] BankTagStatus.APPROVE value: " + BankTagStatus.APPROVE.value());
+		System.out.println("[DEBUG] BankTagStatus.REJECTED value: " + BankTagStatus.REJECTED.value());
 
+		if (BankTagStatus.APPROVE.equals(approvalFlagValue)) {
+
+			System.out.println("[DEBUG] *** APPROVE FLOW STARTED ***");
 			if (updateReq.getRemarks() != null && StringUtils.isNoneBlank(updateReq.getRemarks())) {
 				tollTag.setRemarks(updateReq.getRemarks());
 			}
@@ -3476,17 +3503,21 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 
 			// Tag Vendor has Approve then it goes to NETC For Approval.
 			tollTag.setStatus(String.valueOf(TollTagApprovalStatus.TAGID_PENDING.value()));
+			System.out.println("[DEBUG] APPROVE FLOW: TollTag status set to TAGID_PENDING");
 		}
 
-		if (BankTagStatus.REJECTED.equals(Integer.parseInt(updateReq.getApprovalFlag()))) {
+		if (BankTagStatus.REJECTED.equals(approvalFlagValue)) {
+			System.out.println("[DEBUG] *** REJECT FLOW STARTED ***");
+			System.out.println("[DEBUG] CustomerAccountId: " + tollTag.getCustomerAccountId());
 			
 			List<Dipcoin> dcoins = dipcoinDBService.asyncFindDipcoin(tollTag.getCustomerAccountId(),
 					Arrays.asList(DBConstants.DipcoinUsageType.DEPOSIT.value(),
 							DBConstants.DipcoinUsageType.FEE.value(), DBConstants.DipcoinUsageType.TOLL.value()))
 					.get();
-			
+			System.out.println("[DEBUG] Step 11: Dipcoins fetched - Count: " + (dcoins != null ? dcoins.size() : 0));
 			
 			if (CollectionUtils.isEmpty(dcoins)) {
+				System.out.println("[DEBUG] ERROR: No Dipcoins found for CustomerAccountId: " + tollTag.getCustomerAccountId());
 				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 						.message("deposit and fees amount not available")
 						.data("Customer Account Id", tollTag.getCustomerAccountId()).format());
@@ -3495,61 +3526,82 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 						.body(APIResponse.error(HeaderCode.TOLL_DEPOSIT_AND_FEE_AMOUNT_NOT_AVAILABLE));
 			}
 
+			System.out.println("[DEBUG] Step 12: Dipcoins validation PASSED");
+			
 			List<Integer> userId = new ArrayList<Integer>();
 			userId.add(tollTag.getTollRegistration().getUserId());
 			List<User> dcoinUser = userDBService.asyncGetUsersByIds(userId).get();
+			System.out.println("[DEBUG] Step 13: Dipcoin User fetched - UserID: " + (dcoinUser != null && !dcoinUser.isEmpty() ? dcoinUser.get(0).getId() : "NULL"));
 
 			ResponseEntity deletedcoinResponse = null;
 			BigDecimal initialAmount = null;
 			CustomerAccount customerAccount = null;
 
+			System.out.println("[DEBUG] Step 14: Starting Dipcoin deletion loop...");
+			int dipcoinIndex = 0;
 			for (Dipcoin dcoin : dcoins) {
+				dipcoinIndex++;
+				System.out.println("[DEBUG] Processing Dipcoin #" + dipcoinIndex + " - ID: " + dcoin.getId() + ", UsageType: " + dcoin.getUsageType() + ", Status: " + dcoin.getStatus() + ", UsageCategory: " + dcoin.getUsageCategory());
 				initialAmount = null;
 				if (StringUtils.isNotBlank(dcoin.getUsageCategory())
 						&& dcoin.getUsageCategory().equalsIgnoreCase(tollTag.getRegistrationNo())
 						&& DBConstants.DipcoinStatus.ACTIVE.value() == dcoin.getStatus()) {
+					System.out.println("[DEBUG] Dipcoin #" + dipcoinIndex + " matches criteria for deletion");
 
 					if (dcoin.getUsageType() == DBConstants.DipcoinUsageType.TOLL.value()) {
-
+						System.out.println("[DEBUG] Dipcoin #" + dipcoinIndex + " is TOLL type - Amount: " + dcoin.getAmount());
 						initialAmount = dcoin.getAmount();
 						if (!Hibernate.isInitialized(dcoin.getCustomerAccount())) {
 							Hibernate.initialize(dcoin.getCustomerAccount());
 						}
 						customerAccount = dcoin.getCustomerAccount();
 					}
+					System.out.println("[DEBUG] Calling deleteDipcoin for Dipcoin #" + dipcoinIndex + " - Coin: " + dcoin.getCoin());
 					deletedcoinResponse = customerDipcoinResource.deleteDipcoin(dcoinUser.get(0),
 							dcoinUser.get(0).getPhone().concat(dcoin.getCoin()), false);
+					System.out.println("[DEBUG] deleteDipcoin response for Dipcoin #" + dipcoinIndex + " - Status: " + deletedcoinResponse.getStatusCodeValue());
 					if (HttpStatus.BAD_REQUEST.value() <= deletedcoinResponse.getStatusCodeValue()) {
+						System.out.println("[DEBUG] ERROR: deleteDipcoin FAILED for Dipcoin #" + dipcoinIndex + " - Status: " + deletedcoinResponse.getStatusCodeValue());
+						System.out.println("[DEBUG] ERROR: Response Body: " + deletedcoinResponse.getBody());
 						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 								.message("deposit and fees not reverted").format());
 
 						throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
 								APIResponse.error(HeaderCode.INTERNAL_ERROR));
 					}
+					System.out.println("[DEBUG] deleteDipcoin SUCCESS for Dipcoin #" + dipcoinIndex);
 				}
 				if (initialAmount == null && DBConstants.DipcoinStatus.ACTIVE.value() == dcoin.getStatus()
 						&& dcoin.getUsageType() == DBConstants.DipcoinUsageType.TOLL.value()) {
+					System.out.println("[DEBUG] Dipcoin #" + dipcoinIndex + " - Second TOLL deletion path (initialAmount was null)");
 					initialAmount = dcoin.getAmount();
 					if (!Hibernate.isInitialized(dcoin.getCustomerAccount())) {
 						Hibernate.initialize(dcoin.getCustomerAccount());
 					}
 					customerAccount = dcoin.getCustomerAccount();
+					System.out.println("[DEBUG] Calling deleteDipcoin (second path) for Dipcoin #" + dipcoinIndex);
 					deletedcoinResponse = customerDipcoinResource.deleteDipcoin(dcoinUser.get(0),
 							dcoinUser.get(0).getPhone().concat(dcoin.getCoin()), false);
+					System.out.println("[DEBUG] deleteDipcoin (second path) response for Dipcoin #" + dipcoinIndex + " - Status: " + deletedcoinResponse.getStatusCodeValue());
 
 					if (HttpStatus.BAD_REQUEST.value() <= deletedcoinResponse.getStatusCodeValue()) {
+						System.out.println("[DEBUG] ERROR: deleteDipcoin (second path) FAILED for Dipcoin #" + dipcoinIndex + " - Status: " + deletedcoinResponse.getStatusCodeValue());
+						System.out.println("[DEBUG] ERROR: Response Body: " + deletedcoinResponse.getBody());
 						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("minimum not reverted")
 								.format());
 
 						throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
 								APIResponse.error(HeaderCode.INTERNAL_ERROR));
 					}
+					System.out.println("[DEBUG] deleteDipcoin (second path) SUCCESS for Dipcoin #" + dipcoinIndex);
 
 				}
 
 			}
+			System.out.println("[DEBUG] Step 15: Dipcoin deletion loop COMPLETED");
 
 			if (null == deletedcoinResponse) {
+				System.out.println("[DEBUG] WARNING: deletedcoinResponse is NULL - checking for cancelled FEE dipcoin");
 				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 						.message("deletedcoinResponse is null").format());
 				
@@ -3565,12 +3617,16 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 						}
 					}
 					if(!foundCancelDipcoin) {
+						System.out.println("[DEBUG] ERROR: No cancelled FEE dipcoin found - throwing exception");
 						throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR, APIResponse.error(HeaderCode.INTERNAL_ERROR));
 					}
+					System.out.println("[DEBUG] Found cancelled FEE dipcoin - continuing");
 			}
+			System.out.println("[DEBUG] Step 16: deletedcoinResponse validation PASSED");
 
 			List<TollTag> tollTags = tollDBService
 					.findTollTagsByCustomerAccountId(Arrays.asList(tollTag.getCustomerAccountId()));
+			System.out.println("[DEBUG] Step 17: Found " + (tollTags != null ? tollTags.size() : 0) + " toll tags for customer account");
 
 			boolean tollTagEnabled = false;
 			for (TollTag tolltag : tollTags) {
@@ -3585,8 +3641,11 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 				}
 			}
 
+			System.out.println("[DEBUG] Step 18: tollTagEnabled=" + tollTagEnabled + ", initialAmount=" + initialAmount + ", customerAccount=" + (customerAccount != null ? customerAccount.getId() : "NULL"));
+			
 			if (tollTagEnabled && initialAmount != null && customerAccount != null
 					&& initialAmount.compareTo(tollTag.getAvailableAmount()) > NumberUtils.INTEGER_ZERO) {
+				System.out.println("[DEBUG] Step 19: Creating new Dipcoin for remaining balance");
 				CustomerDipcoinRequest createReq = new CustomerDipcoinRequest();
 				if (!Hibernate.isInitialized(customerAccount.getUser())) {
 					Hibernate.initialize(customerAccount.getUser());
@@ -3629,54 +3688,64 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 
 				ResponseEntity createDipcoinresponse = customerDipcoinResource.createDipcoin(customerAccount.getUser(),
 						createReq, false);
+				System.out.println("[DEBUG] Step 20: New Dipcoin created - Status: " + createDipcoinresponse.getStatusCodeValue());
 
+			} else {
+				System.out.println("[DEBUG] Step 19: Skipping new Dipcoin creation (conditions not met)");
 			}
 			
+			if (updateReq.getRejectReason() != null && StringUtils.isNotEmpty(updateReq.getRejectReason())) {
+				tollTag.setRejectReason(updateReq.getRejectReason());
+				System.out.println("[DEBUG] RejectReason set: " + updateReq.getRejectReason());
+			}
 			
+			tollTag.setApprovalFlag(String.valueOf(BankTagStatus.REJECTED.value()));
+			tollTag.setStatus(String.valueOf(TollTagApprovalStatus.BANK_REJECTED.value()));
 			
+			// Release EPC tag back to inventory when rejecting
+			// Only process EPC release if TagId is valid (not a timestamp or empty)
+			boolean hasValidTagId = tollTag.getTagId() != null && 
+									!tollTag.getTagId().isEmpty() &&
+									!tollTag.getTagId().matches(".*\\d{4}-\\d{2}-\\d{2}T.*"); // Skip timestamp formats
+			
+			if (hasValidTagId || tollTag.getTid() != null || tollTag.getSerialNumber() != null) {
+				System.out.println("[DEBUG] REJECT FLOW: Checking EPC tag - TagId: " + tollTag.getTagId());
+				
+				if (hasValidTagId) {
+					Epc epc = this.tollDBService.findEpcByTagId(tollTag.getTagId());
+					if (epc == null) {
+						System.out.println("[DEBUG] WARNING: EPC not found for TagId: " + tollTag.getTagId() + " - Skipping EPC release");
+						// Don't return error, just skip EPC release and continue
+					} else if (epc.getStatus() == DBConstants.EpcStatus.USED.value()) {
+						epc.setStatus(DBConstants.EpcStatus.NOTUSED.value());
+						epc = this.tollDBService.saveEpc(epc);
+						if (epc == null) {
+							LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Epc Not Updated").format());
+						} else {
+							System.out.println("[DEBUG] REJECT FLOW: EPC status changed to NOTUSED");
+						}
+					}
+				}
+
+				tollTag.setTagId(null);
+				tollTag.setTid(null);
+				tollTag.setSerialNumber(null);
+				System.out.println("[DEBUG] REJECT FLOW: TagId/Tid/SerialNumber cleared from TollTag");
+			}
+			
+			System.out.println("[DEBUG] *** REJECT FLOW COMPLETED ***");
 		}
 
-		if (updateReq.getRejectReason() != null && StringUtils.isNotEmpty(updateReq.getRejectReason())) {
-			tollTag.setRejectReason(updateReq.getRejectReason());
-		}
-
+		System.out.println("[DEBUG] Step 21: Setting final toll tag properties");
+		
 		if (updateReq.getRemarks() != null && StringUtils.isNotEmpty(updateReq.getRemarks())) {
 			tollTag.setRemarks(updateReq.getRemarks());
 		}
-
-		tollTag.setApprovalFlag(String.valueOf(BankTagStatus.REJECTED.value()));
-		tollTag.setStatus(String.valueOf(TollTagApprovalStatus.BANK_REJECTED.value()));
 
 		tollTag.setTollRegistration(tollRegistration);
 		tollTag.setApprovedBy(user.getId());
 		tollTag.setApprovedIPAddress(originIp);
 		tollTag.setApprovedDateTime(String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis()));
-
-		//Epc epc = null;
-		if (tollTag.getTagId() != null || tollTag.getTid() != null
-				|| tollTag.getSerialNumber() != null) {
-			
-		   Epc epc = this.tollDBService.findEpcByTagId(tollTag.getTagId());
-			if (epc == null) {
-
-				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-						.body(APIResponse.error(HeaderCode.TAGID_IS_NOT_IN_CORRECT_FORMAT_OR_EMPTY));
-			}
-		
-			if (epc != null && epc.getStatus() == DBConstants.EpcStatus.USED.value()) {
-				epc.setStatus(DBConstants.EpcStatus.NOTUSED.value());
-
-				epc = this.tollDBService.saveEpc(epc);
-				if (epc == null) {
-					LOG.error(
-							LogFormatter.instance(httpServletContext.getTraceId()).message("Epc Not Updated").format());
-				}
-			}
-
-				tollTag.setTagId(null);
-				tollTag.setTid(null);
-				tollTag.setSerialNumber(null);
-		}
 		
 		
 		// update the TollTag details.
