@@ -35,6 +35,10 @@ import com.dipcoin.api.model.UserInfoResponse;
 import com.dipcoin.api.resource.TollBankResource;
 import com.dipcoin.api.resource.TollCustomerResource;
 import com.dipcoin.api.resource.TollMerchantResource;
+import com.dipcoin.db.services.BankDBService;
+import com.dipcoin.db.services.UserDBService;
+import com.dipcoin.db.services.model.Bank;
+import com.dipcoin.db.services.model.User;
 import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
 
 import io.micrometer.core.annotation.Timed;
@@ -71,6 +75,12 @@ public class TollMerchantRequestHandlerAuth extends RequestHandler {
     @Autowired
     private TollMerchantResource tollMerchantResource;
     
+    @Autowired
+   	private BankDBService bankDBService;
+
+   	@Autowired
+   	private UserDBService userDBService;
+    
     @GetMapping
    	@ApiOperation(value = "Get Tag based on merchnat and other filters", notes = "API to get  Toll Customer based on  Merchant and other filters", response = TollRegistrationResponse.class)
    	@ApiResponses(value = { @ApiResponse(code = 400, message = "Bank Code Invalid", response = APIResponse.class),
@@ -100,9 +110,13 @@ public class TollMerchantRequestHandlerAuth extends RequestHandler {
             @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
             @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
             throws Exception, APIException {
-
-        return tollServiceBankResource.updateTollCustomerByBank(httpServletContext.getUser(),
-                httpServletContext.getBank(), updateReq, clientTransactionId);
+    	 User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
+  		Bank bank = bankDBService.getBank(user.getBankMerchantId());
+  		if (bank == null) {
+  			return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+  					.body(APIResponse.error(com.dipcoin.api.commons.HeaderCode.USER_UNAUTHORIZED));
+  		}
+        return tollServiceBankResource.updateTollCustomerByBank(user,bank, updateReq, clientTransactionId);
     }
 
     @PutMapping("update")
@@ -112,9 +126,15 @@ public class TollMerchantRequestHandlerAuth extends RequestHandler {
             @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
             @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
             throws Exception, APIException {
+    	
+    	 User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
+ 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
+ 		if (bank == null) {
+ 			return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+ 					.body(APIResponse.error(com.dipcoin.api.commons.HeaderCode.USER_UNAUTHORIZED));
+ 		}
 
-        return tollServiceBankResource.updateAddressAndVehicleNoByBank(httpServletContext.getUser(),
-                httpServletContext.getBank(), updateReq, clientTransactionId);
+        return tollServiceBankResource.updateAddressAndVehicleNoByBank(user,bank, updateReq, clientTransactionId);
     }
 
     @PutMapping("tag")
@@ -124,9 +144,15 @@ public class TollMerchantRequestHandlerAuth extends RequestHandler {
             @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
             @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
             throws Exception, APIException {
+    	
+    	User user = userDBService.getUsersByIds(java.util.Arrays.asList(httpServletContext.getUser().getId())).get(0);
+ 		Bank bank = bankDBService.getBank(user.getBankMerchantId());
+ 		if (bank == null) {
+ 			return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+ 					.body(APIResponse.error(com.dipcoin.api.commons.HeaderCode.USER_UNAUTHORIZED));
+ 		}
 
-        return tollServiceBankResource.updateTollCustomerByVendor(httpServletContext.getUser(),
-                httpServletContext.getBank(), updateReq, clientTransactionId);
+        return tollServiceBankResource.updateTollCustomerByVendor(user,bank, updateReq, clientTransactionId);
     }
     
     // Get Toll customer Doc based on docpath

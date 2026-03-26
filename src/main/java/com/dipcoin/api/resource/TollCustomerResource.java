@@ -1795,6 +1795,8 @@ public class TollCustomerResource {
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll idproof path set")
 				.data("destinationPath", destinationPath).format());
 		if (destinationPath == null) {
+			System.out.println("Inside setFilePath rcDoc: " + rcDoc);
+			System.out.println("Inside setFilePath rcDoc length: " + (rcDoc != null ? rcDoc.length : "NULL"));
 			throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR, APIResponse.error(HeaderCode.FILE_UPLOAD_FAIL));
 		}
 		tollRegistration.setIdProofImage(destinationPath);

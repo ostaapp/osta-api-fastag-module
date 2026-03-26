@@ -83,6 +83,11 @@ public class TollCustomerRequestHandlerAuth {
             @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
             @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
             throws Exception, APIException {
+    	
+    	 System.out.println("rcDoc: " + rcDoc);
+    	    System.out.println("rcDoc length: " + (rcDoc != null ? rcDoc.length : "NULL"));
+    	    System.out.println("idProof: " + idProof);
+
 
         return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
                 request, RegistrationType.DEFAULT.value(), clientTransactionId);

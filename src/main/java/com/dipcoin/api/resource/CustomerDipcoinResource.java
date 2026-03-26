@@ -978,7 +978,7 @@ public class CustomerDipcoinResource {
 
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("Encrypted Coin", encDcoin).format());
 
-		if (!this.userDBService.isCustomer(user)) {
+		if (!this.userDBService.isCustomer(user) && !this.userDBService.bankRepresentative(user)) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
 		}
 
