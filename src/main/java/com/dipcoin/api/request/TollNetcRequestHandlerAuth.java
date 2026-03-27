@@ -41,9 +41,9 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 
 
-@Api(value = "/jwt/")
+@Api(value = "/jwt/toll")
 @RestController
-@RequestMapping(value = "/jwt/",
+@RequestMapping(value = "/jwt/toll",
     consumes = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_PLAIN_VALUE, MediaType.ALL_VALUE},
     produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_PLAIN_VALUE, MediaType.ALL_VALUE})
 @CrossOrigin

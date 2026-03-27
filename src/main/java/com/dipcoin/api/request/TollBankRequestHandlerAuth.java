@@ -53,9 +53,9 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
-@Api(value = "/v1/jwt/bank/customer")
+@Api(value = "/v1/jwt/toll/bank/customer")
 @RestController
-@RequestMapping(value = "/v1/jwt/bank/customer",  consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE,
+@RequestMapping(value = "/v1/jwt/toll/bank/customer",  consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE,
         MediaType.ALL_VALUE},
     produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE,
         MediaType.ALL_VALUE})
