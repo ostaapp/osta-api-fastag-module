@@ -9,6 +9,7 @@ import javax.ws.rs.core.HttpHeaders;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import com.dipcoin.api.resource.SystemResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -62,6 +63,9 @@ public class TollCustomerRequestHandlerAuth {
 
     @Autowired
     private TollCustomerResource tollServicesResource;
+    
+    @Autowired
+	private SystemResource systemResource;
     
     @Autowired
     private CustomerDipcoinResource customerDipcoinResource;
@@ -408,6 +412,14 @@ public class TollCustomerRequestHandlerAuth {
 			throws Exception {
 
 		return customerDipcoinResource.getTollDipcoinHierarchy(httpServletContext.getUser(), encryptedCarId, false);
+	}
+	
+	@GetMapping("healthcheck")
+	@ApiOperation(value = "Customer User Healthcheck", notes = "API to check if customer user service is up and running.")
+	public ResponseEntity healthcheck(
+			@ApiParam(value = "Debug flag to return system configuration instead of simple OK response", required = false) @RequestParam(value = "debug", required = false, defaultValue = "false") boolean debug)
+			throws Exception, APIException {
+		return systemResource.getHealthcheck(debug);
 	}
 	
 	@DeleteMapping("osta/{cdid:.*}")

@@ -59,7 +59,7 @@ public class AuthorizationInterceptor implements RequestInterceptor {
       "/v1/bank/user/authorized",
       "/v1/merchant/user/authorized", "/v1/brontoo/user/authorized","/v1/customer/bill/oauth2/token");
   static {
-    INSECURE_PATHS.put(RequestType.GET.toString(), Arrays.asList("/v1/system/healthcheck",
+    INSECURE_PATHS.put(RequestType.GET.toString(), Arrays.asList("/v1/system/healthcheck","/v1/jwt/toll/customer/healthcheck",
         "/v1/bank/list", "/v1/misc/countries", "/v1/misc/states", "/v1/misc/dipcoin/categories",
         "/v1/customer/app/version", "/v1/customer/toll/ihmclBank","/v1/jwt/toll/customer/ihmclBank", "/v1/merchant/resend/email", "/v1/bank/resend/email",
         "/v1/system/heapMemoryCheck", "/RespVehicleDetails","/v1/customer/bill/oauth2/token","/v1/customer/bill/oauth2/addMoney/user",
