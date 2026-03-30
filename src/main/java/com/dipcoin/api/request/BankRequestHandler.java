@@ -20,9 +20,9 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 
-@Api(value = "/v1/jwt/bank")
+@Api(value = "/v1/jwt/toll/bank")
 @RestController
-@RequestMapping(value = "/v1/bank",
+@RequestMapping(value = "/v1/jwt/toll/bank",
     consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE},
     produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
 @CrossOrigin
