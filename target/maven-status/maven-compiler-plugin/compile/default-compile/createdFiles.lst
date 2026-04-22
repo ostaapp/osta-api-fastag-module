@@ -49,6 +49,7 @@ com\dipcoin\api\model\BankTransactionsResponse.class
 com\dipcoin\partner\recharge\comm\RechargeBalanceResponse$Fields.class
 com\dipcoin\partner\recharge\comm\RechargeJioValidateResponse$Fields.class
 com\dipcoin\partner\recharge\comm\BillComplaintGenerationRequestDetails$ChannelDetails$Fields.class
+com\dipcoin\api\request\BankRequestHandler.class
 com\dipcoin\partner\recharge\comm\BillPaymentServiceResponse$Fields.class
 com\dipcoin\partner\recharge\comm\BillMerchantStatusDetails$ChannelDetails.class
 com\dipcoin\partner\recharge\comm\BillRegisterComplaintResponse$Fields.class
@@ -259,6 +260,7 @@ com\dipcoin\api\model\Score.class
 com\dipcoin\api\model\Detail.class
 com\dipcoin\partner\toll\commons\TollHttpsServices.class
 com\dipcoin\api\utils\RechargeConstants$SupportedHttpMethod.class
+com\dipcoin\api\resource\BankResource.class
 com\dipcoin\amqp\RespVehicleDetalilsRabbitMQRequest.class
 com\dipcoin\tcp\TCPMessageResponse$Status.class
 com\dipcoin\api\model\TollReqPayRequest.class
