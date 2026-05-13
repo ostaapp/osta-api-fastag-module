@@ -487,6 +487,51 @@ throws Exception, APIException {
       		: null,accountNumber);
 }
 
+@GetMapping("disputeOptions")
+@ApiOperation(value = "Fetch function codes & Reason codes",
+    notes = "API to Fetch function codes & Reason codes based on PreRequisite Code",
+    response = TollRegistrationResponse.class)
+@ApiResponses(value = {
+    @ApiResponse(code = 400, message = "PreRequisite Codes Not Found", response = APIResponse.class)})
+public ResponseEntity getDisputeOptions(
+    @ApiParam(value = "Pre-Requisite Code",
+        required = true) @RequestParam(value = "preRequisiteCode", required=false) final Integer preRequisiteCode,     
+    @ApiParam(value = "Function Codes",
+    required = true) @RequestParam(value = "functionCodes", required=false) final Integer functionCodes,
+    @ApiParam(value = "Fetch All Function codes",
+    required = true) @RequestParam(value = "fetchAll", required=false) final boolean fetchAll,
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
+            throws Exception, APIException {
+
+  return tollServicesResource.getDisputeOptions(httpServletContext.getUser(), preRequisiteCode, functionCodes, fetchAll);
+}
+
+//Bank toll Customers
+@PostMapping("register")
+@ApiOperation(value = "Registration Details for tollServices Customer",
+    notes = "API to add a new customer account.", response = TollRegistrationResponse.class)
+@ApiResponses(value = {@ApiResponse(code = 201,
+    message = "User registered AND (Failed to send otp sms OR Failed to send verification email)",
+    response = APIResponse.class),
+    @ApiResponse(code = 400, message = "User already exists", response = APIResponse.class),
+    @ApiResponse(code = 400, message = "Missing/Invalid request", response = APIResponse.class),
+    @ApiResponse(code = 401, message = "Unauthorized User", response = APIResponse.class),
+    @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+public ResponseEntity registerTollCustomer(@RequestParam("RCImage") MultipartFile[] rcDoc,
+    @RequestParam("idProof") MultipartFile idProof, @RequestParam("request") String request,
+    @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
+        value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
+    @ApiParam(value = APIDoc.tokenNotes, required = true,
+        defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(
+            value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+    @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(
+        value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+    throws Exception, APIException {
+
+  return tollServiceBankResource.addAndUpdateTollCustomer(httpServletContext.getUser(), httpServletContext.getBank(), rcDoc,
+      idProof, request, clientTransactionId);
+}
+
 }
 
 

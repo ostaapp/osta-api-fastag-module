@@ -47,6 +47,9 @@ import com.dipcoin.api.model.CustomerAccountVerifyRequest;
 import com.dipcoin.api.model.TopUpDetails;
 import com.dipcoin.api.model.WalletUserInfo;
 import com.dipcoin.bank.services.BankAPIServices;
+import com.dipcoin.bank.services.client.BankClient.Operation;
+import com.dipcoin.bank.services.comm.BankUIDRequest;
+import com.dipcoin.bank.services.comm.BankUIDResponse;
 import com.dipcoin.bank.services.comm.CreateVirtualAccountRequest;
 import com.dipcoin.bank.services.comm.CreateVirtualAccountResponse;
 import com.dipcoin.bank.services.comm.UserAuthenticationRequest;
@@ -136,6 +139,9 @@ public class CustomerResource {
 
 	@Autowired
 	private DBConfig dbConfig;
+	
+	@Autowired
+	  private OAuth2CustomerResource oAuth2CustomerResource;
 
 	@Autowired
 	@Lazy
@@ -1137,5 +1143,202 @@ public class CustomerResource {
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
 	}
+	
+	public ResponseEntity customerAddAccount(User user, CustomerAccountRequest addReq,
+		      String clientTransactionId, Boolean bypassAuthentication, boolean byPassCallbackBankUrl,
+		      Bank bank, String source) throws APIException, Exception {
+
+		    CustomerAccountResponse response = new CustomerAccountResponse();
+
+		    // add account and verify accoun
+		    addReq.setMethodType(addReq.getMethodType());
+		    ResponseEntity addedCustomerAccount =
+		        this.addAccount(user, addReq, clientTransactionId, bypassAuthentication, null);
+
+		    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+		        .data("Reason", addedCustomerAccount).format());
+
+		    LOG.debug(
+		        LogFormatter.instance(httpServletContext.getTraceId()).data("Reason", response).format());
+
+		    CustomerAccountResponse customerAccount =
+		        (CustomerAccountResponse) addedCustomerAccount.getBody();
+
+		    if (customerAccount.getCodes().get(0).getCode() != null
+		        && customerAccount.getCodes().get(0).getCode() == ("C-030")) {
+		      response.addHeaderCode(HeaderCode.USER_ACCOUNT_EXIST);
+		      
+		      LOG.debug(
+		    	        LogFormatter.instance(httpServletContext.getTraceId()).data("customerAccount", customerAccount).format());
+		      
+		      if (!byPassCallbackBankUrl) {
+		        oAuth2CustomerResource.bankCallback(user, addReq.getAccountNumber(),
+		            DBConstants.BankRequestType.USER_REGISTERATION.value(),
+		            HeaderCode.TRANSACTION_SUCCESSFUL.code(), bank, source, addReq.getBankCifNo(),
+		            Integer.toString(BooleanStatus.NO.value()), httpServletContext.getTraceId());
+		      }
+
+		      return ResponseEntity.status(HttpStatus.OK).body(customerAccount);
+
+		    }
+		    if (addedCustomerAccount.getStatusCode() != HttpStatus.OK) {
+		      LOG.info(addedCustomerAccount.getBody());
+		      response.addHeaderCode(HeaderCode.UNABLE_TO_ADD_BANK_ACCOUNT);
+		      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+		          .data("Reason", addedCustomerAccount.getBody()).format());
+		      if (!byPassCallbackBankUrl) {
+		        oAuth2CustomerResource.bankCallback(user, addReq.getAccountNumber(),
+		            DBConstants.BankRequestType.USER_REGISTERATION.value(),
+		            HeaderCode.TRANSACTION_FAILURE.code(), bank, source, addReq.getBankCifNo(),
+		            Integer.toString(BooleanStatus.NO.value()), httpServletContext.getTraceId());
+		      }
+		      return ResponseEntity.status(addedCustomerAccount.getStatusCode()).body(response);
+		    }
+
+		    // CustomerAccountResponse addedCustomerAccount1 = (CustomerAccountResponse)
+		    // addedCustomerAccount.getBody();
+
+		    // BankMethodType
+
+		    if (CustomerAccountMethodType.BANK_SDK.value() == addReq.getMethodType()) {
+		      response.addHeaderCode(HeaderCode.BANK_ACCOUNT_ADDED);
+		      LOG.debug(
+		          LogFormatter.instance(httpServletContext.getTraceId()).data("Reason", response).format());
+		      return ResponseEntity.status(addedCustomerAccount.getStatusCode()).body(customerAccount);
+		    }
+
+
+		    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("User Id", user.getId())
+		        .data("Card Id", customerAccount.getCardId()).format());
+
+		    CustomerAccount account =
+		        customerDBService.getAccount(user.getId(), customerAccount.getCardId());
+
+		    if (account == null) {
+		      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+		          .message("CustomerAccount is not found.").format());
+		      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+		          .body(APIResponse.error(HeaderCode.USER_ACCOUNT_DOESNT_EXIST));
+		    }
+
+		    BankProperties bankProperties =
+		        bankAPIServices.getBankProperties(account.getBank().getReferenceId());
+
+		    if (bankProperties.fetchBankUID()) {
+		      String dipcoinReferenceNumber =
+		          bankUtils.generateDipcoinToBankReferenceNumber(account.getBank().getReferenceId(),
+		              Operation.BANK_UID, BankTransactionType.FETCH_BANK_UID.value());
+		      String requestTime = String.valueOf(DateTime.now(DateTimeZone.UTC).getMillis());
+
+		      BankUIDRequest bankUIDRequest =
+		          new BankUIDRequest(account.getBank().getReferenceId(), account.getBank().getCode());
+		      bankUIDRequest.setAccountNumber(addReq.getAccountNumber());
+		      bankUIDRequest.setTransactionType(String.valueOf(BankTransactionType.FETCH_BANK_UID.value()));
+		      bankUIDRequest.setDipcoinReferenceNumber(dipcoinReferenceNumber);
+		      bankUIDRequest.setTransactionTime(requestTime);
+		      if (addReq.getAccountFlag() != null)
+		        bankUIDRequest.setAccountFlag(String.valueOf(addReq.getAccountFlag()));
+		      else
+		        bankUIDRequest.setAccountFlag(String.valueOf(BooleanStatus.NO.value()));
+
+		      BankRequestContext bankRequestContext = new BankRequestContext();
+		      bankRequestContext.setTraceId(httpServletContext.getTraceId());
+
+		      LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+		          .data("Request for bankUid", bankUIDRequest).format());
+
+		      BankUIDResponse bResponse =
+		          bankAPIServices.getBankUID(bankRequestContext, bankUIDRequest).get();
+
+		      LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
+		          .data("Response from bank for bankUid", bResponse).format());
+
+		      BankTransaction bTx = new BankTransaction();
+		      bTx.setType(BankTransactionType.FETCH_BANK_UID.value());
+		      bTx.setCustomerAccountId(account.getId());
+		      bTx.setDipcoinTransactionRefId(dipcoinReferenceNumber);
+		      bTx.setBankId(bank.getId());
+
+		      if (bResponse == null
+		          || !BankResponseStatus.SUCCESS.code().equals(bResponse.getBankResponseCode())
+		          || !dipcoinReferenceNumber.equals(bResponse.getDipcoinReferenceNumber())) {
+		        LOG.debug("Failed to verify user account with bank");
+		        bTx.setStatus(BankTransactionsStatus.FAILED.value());
+		        if (bResponse != null) {
+		          bTx.setRequestTime(bResponse.getRequestTime());
+		          bTx.setResponseTime(bResponse.getResponseTime());
+		          bTx.setBankTransactionRefId(bResponse.getBankTransactionReferenceNumber());
+		          bTx.setRawBankResponse(
+		              bResponse.getBankResponseDesc() != null ? bResponse.getBankResponseDesc()
+		                  : bResponse.getErrorMsg());
+		          bTx.setBankResponseCode(bResponse.getBankResponseCode());
+		          bTx.setRawBankRequest(objectMapper.writeValueAsString(bankUIDRequest));
+		        }
+		        if (this.bankDBService.asyncAddTransaction(bTx).get() == null) {
+		          LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+		              .message("Failed to add bank transaction").data("transaction", bTx).format());
+		        }
+		        account.setBankUId(null);
+		        account.setStatus(CustomerAccountStatus.UID_NOT_GENERATED.value());
+
+		        if (customerDBService.updateAccount(account) == null) {
+		          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+		              APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		        }
+
+		        if (bResponse == null) {
+		          throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+		              APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		        }
+		        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+		            .body(APIResponse.error(HeaderCode.USER_ACCOUNT_DOESNT_EXIST));
+		      }
+
+		      bTx.setRawBankRequest(bResponse.getRawRequest());
+		      bTx.setStatus(BankTransactionsStatus.SUCCESS.value());
+		      bTx.setRawBankResponse(bResponse.getRawData());
+		      bTx.setBankResponseCode(bResponse.getBankResponseCode());
+		      bTx.setBankTransactionRefId(bResponse.getBankTransactionReferenceNumber());
+		      bTx.setRequestTime(bResponse.getRequestTime());
+		      bTx.setResponseTime(bResponse.getResponseTime());
+		      LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+		          .message("Bank Services fetch bankUID").data("requestTime", bResponse.getRequestTime())
+		          .data("responseTime", bResponse.getResponseTime()).format());
+
+
+		      if (this.bankDBService.asyncAddTransaction(bTx).get() == null)
+		        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+		            .body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+
+		      account.setStatus(CustomerAccountStatus.ACTIVE.value());
+		      account.setBankUId(bResponse.getBankUID());
+
+		      if (customerDBService.updateAccount(account) == null) {
+		        throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+		            APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		      }
+		      LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+		          .message("Updated Account Status to Active").format());
+		    } else {
+		      account.setStatus(CustomerAccountStatus.ACTIVE.value());
+		      account.setBankUId(addReq.getAccountNumber());
+
+		      if (customerDBService.updateAccount(account) == null) {
+		        throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR,
+		            APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		      }
+		    }
+
+		    if (!byPassCallbackBankUrl) {
+		      oAuth2CustomerResource.bankCallback(user, addReq.getAccountNumber(),
+		          DBConstants.BankRequestType.USER_REGISTERATION.value(),
+		          HeaderCode.TRANSACTION_SUCCESSFUL.code(), bank, source, addReq.getBankCifNo(),
+		          Integer.toString(BooleanStatus.NO.value()), httpServletContext.getTraceId());
+		    }
+		    response.addHeaderCode(HeaderCode.BANK_ACCOUNT_ADDED);
+		    response.setCardId(customerAccount.getCardId());
+		    return ResponseEntity.status(addedCustomerAccount.getStatusCode()).body(response);
+
+		  }
 
 }

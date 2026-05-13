@@ -23,6 +23,7 @@ com\dipcoin\api\commons\TollEmailUtils.class
 com\dipcoin\tcp\SSLTCPServer.class
 com\dipcoin\api\model\TollTagUpdateResponse$Txn$Resp.class
 com\dipcoin\partner\recharge\comm\BillResponse$Fields.class
+com\dipcoin\api\resource\OAuth2CustomerResource.class
 com\dipcoin\api\utils\RechargeConstants$ReconFileStatuses.class
 com\dipcoin\api\request\TollNetcRequestHandlerAuth.class
 com\dipcoin\bank\services\comm\BankRequest.class
@@ -415,6 +416,7 @@ com\dipcoin\partner\recharge\comm\RechargePlanResponse.class
 com\dipcoin\bank\services\comm\DipcoinRequest$Fields.class
 com\dipcoin\api\commons\APIConstants$RequestSource.class
 com\dipcoin\amqp\CreditListener.class
+com\dipcoin\api\model\BankSourceValidator.class
 com\dipcoin\partner\recharge\comm\BillPaymentValidateRequest$Fields.class
 com\dipcoin\api\model\TollTagResponse.class
 com\dipcoin\api\model\BanksResponse.class

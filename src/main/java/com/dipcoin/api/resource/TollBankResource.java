@@ -53,18 +53,24 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.dipcoin.api.commons.APIConstants;
 import com.dipcoin.api.commons.APIConstants.DateFormatter;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.commons.EmailUtils;
 import com.dipcoin.api.commons.HeaderCode;
+import com.dipcoin.api.commons.OfflineJobClient;
 import com.dipcoin.api.commons.TollEmailUtils;
 import com.dipcoin.api.commons.TollProperties;
 import com.dipcoin.api.config.ApplicationProperties;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.CustomerAccountRequest;
+import com.dipcoin.api.model.CustomerAccountResponse;
 import com.dipcoin.api.model.CustomerDipcoinRequest;
 import com.dipcoin.api.model.Detail;
+import com.dipcoin.api.model.EncryptionResponse;
 import com.dipcoin.api.model.EpcResponse;
 import com.dipcoin.api.model.Head;
 import com.dipcoin.api.model.Pagination;
@@ -78,6 +84,7 @@ import com.dipcoin.api.model.TagList;
 import com.dipcoin.api.model.TollNetcDetailsResponse;
 import com.dipcoin.api.model.TollNetcSyncTimeResponse;
 import com.dipcoin.api.model.TollRechargeRequest;
+import com.dipcoin.api.model.TollRegistrationRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.model.TollReqPayRequest;
 import com.dipcoin.api.model.TollTagCountResponse;
@@ -92,6 +99,7 @@ import com.dipcoin.api.model.TollTransactionsReport;
 import com.dipcoin.api.model.TollTransactionsReportResponse;
 import com.dipcoin.api.model.TopUpDetails;
 import com.dipcoin.api.model.Txn;
+import com.dipcoin.api.model.UserRegisterRequest;
 import com.dipcoin.api.model.Vehicle;
 import com.dipcoin.api.utils.TollMetricRegistry;
 import com.dipcoin.bank.services.BankAPIServices;
@@ -122,6 +130,7 @@ import com.dipcoin.db.services.commons.DBConstants.TagDeliveryType;
 import com.dipcoin.db.services.commons.DBConstants.TollTagApprovalStatus;
 import com.dipcoin.db.services.commons.DBConstants.TransactionSource;
 import com.dipcoin.db.services.commons.DBConstants.UserRoles;
+import com.dipcoin.db.services.commons.DBConstants.UserStatus;
 import com.dipcoin.db.services.commons.DBConstants.VinVrn;
 import com.dipcoin.db.services.commons.Utils;
 import com.dipcoin.db.services.model.Bank;
@@ -159,6 +168,9 @@ public class TollBankResource {
 			DateFormatter.DD_MM_YYYY_HH_MM_SS.value());
 
 	protected static boolean encryptCardId = false;
+	
+	@Autowired
+	private OfflineJobClient offlineJobClient;
 
 	@Autowired
 	private TollHttpsServices tollHttpsServices;
@@ -242,6 +254,18 @@ public class TollBankResource {
 	
 	@Autowired
 	private TollEmailUtils tollEmailUtils;
+	
+	@Autowired
+	private UserLoginResource userLoginResource;
+	
+	@Autowired
+	private EncryptionResource encryptionResource;
+	
+	@Autowired
+	private OAuth2CustomerResource oAuth2UserLoginResource;
+	
+	@Autowired
+	private CustomerResource customerResource;
 			
 //	public BrontooResource getBrontooResource() {
 //	    return brontooResource;
@@ -4451,5 +4475,311 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 		return epcResponses;
 	}
 
+
+	public ResponseEntity getStatement(User user, Bank bank, TollTagRequest statementRequest) throws Exception {
+
+		if (user == null) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		}
+
+		if (!this.userDBService.isBankAdmin(user) && !this.userDBService.isBankSuperAdmin(user)
+				&& !this.userDBService.isCustomer(user)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		if (!userDBService.isActive(user)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.BANK_TELLER_NOT_ACTIVE));
+		}
+
+		if (statementRequest.getRegistrationNo() == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_VEHICLE_REG_NO_NOT_PRESENT));
+		}
+
+		List<TollTag> tollTags = tollDBService
+				.findTollTagByRegistrationNo(Arrays.asList(statementRequest.getRegistrationNo().trim()));
+
+		if (CollectionUtils.isEmpty(tollTags)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_VEHICLE_REG_NO_NOT_PRESENT));
+		}
+
+		if (this.userDBService.isCustomer(user)
+				&& user.getId() != tollTags.get(NumberUtils.INTEGER_ZERO).getTollRegistration().getUserId()) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_VEHICLE_REG_NO_NOT_ASSOCIATED_WITH_ACCOUNT));
+		}
+
+		String response = offlineJobClient.initMailTollStatement(bank, user, statementRequest,
+				httpServletContext.getTraceId());
+
+		if (response == null) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(APIResponse.error(HeaderCode.TOLL_TRANSACTION_NOT_MAILED));
+		}
+
+		return ResponseEntity.status(HttpStatus.OK).body(APIResponse.error(HeaderCode.TOLL_TRANSACTION_MAILED));
+	}
+	
+	// Bank Toll Cutomers APIs ========
+	public ResponseEntity addAndUpdateTollCustomer(User bankUser, Bank bank, final MultipartFile[] rcDoc,
+			final MultipartFile idProof, final String request, final String clientTransactionId)
+			throws Exception, APIException {
+		TollRegistrationResponse response = new TollRegistrationResponse();
+
+		// Check for the Request form bank
+		if (!UserRoles.bankUserRoles().contains(bankUser.getRole())) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		}
+
+		if (!this.userDBService.isActive(bankUser)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(HeaderCode.USER_NOT_ACTIVE));
+		}
+
+		final TollRegistrationRequest createReq = new ObjectMapper().readValue(request, TollRegistrationRequest.class);
+
+		User newUser = null;
+		List<User> users = userDBService.getUsersByRoles(createReq.getMobileNo(),
+				Arrays.asList(UserRoles.CUSTOMER.value()), NumberUtils.INTEGER_ZERO);
+
+		if (CollectionUtils.isNotEmpty(users)) {
+
+			for (User user : users) {
+				if (user.getStatus() == UserStatus.ACTIVE.value()) {
+
+					newUser = user;
+				} else if (user.getStatus() == UserStatus.ONHOLD.value()) {
+					user.setStatus(UserStatus.ACTIVE.value());
+					newUser = userLoginResource.updateUser(user);
+					if (newUser == null) {
+						LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+								.message(HeaderCode.USER_NOT_UPDATED.message()).format());
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+								.body(APIResponse.error(HeaderCode.BAD_REQUEST));
+
+					}
+				}
+			}
+		}
+		if (newUser == null) {
+
+			// Register the Customer in our system
+			UserRegisterRequest userRegReq = new UserRegisterRequest();
+			userRegReq.setFname(createReq.getFirstName());
+			userRegReq.setLname(createReq.getLastName());
+			userRegReq.setEmail(createReq.getEmailId());
+			userRegReq.setPhonenum(createReq.getMobileNo());
+			userRegReq.setPassword(Utils
+					.getHashedLogin(encryptionResource.encrypt(bankUser, null, bank, CoreUtils.randomAlphaString(8))));
+			userRegReq.setTnc(true);
+
+			ResponseEntity regCustAcctResponse = oAuth2UserLoginResource.registerPartnerUser(userRegReq,
+					APIConstants.CUSTOMER, clientTransactionId, httpServletContext.getBank(),httpServletContext.getMerchant(), false,true);
+
+			if (HttpStatus.BAD_REQUEST.value() <= regCustAcctResponse.getStatusCodeValue()) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message(HeaderCode.FAIL_TO_ADD_USER.message()).format());
+
+				throw new APIException(HttpStatus.BAD_REQUEST, APIResponse.error(HeaderCode.FAIL_TO_ADD_USER));
+			}
+
+			// Get the User the RegisterCutomerAccount
+
+			List<User> newUsers = userLoginResource.getUser(createReq.getMobileNo(),
+					DBConstants.UserStatus.ACTIVE.value());
+
+			if (CollectionUtils.isEmpty(newUsers)) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message(HeaderCode.FAIL_TO_ADD_USER.message()).data("Mobile Number", createReq.getMobileNo())
+						.format());
+
+				throw new APIException(HttpStatus.BAD_REQUEST, APIResponse.error(HeaderCode.FAIL_TO_ADD_USER));
+			}
+
+			for (User user : newUsers) {
+				if (UserRoles.CUSTOMER.value().equalsIgnoreCase(user.getRole())) {
+					newUser = user;
+					break;
+				}
+			}
+
+		}
+
+		if (newUser == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message(HeaderCode.FAIL_TO_ADD_USER.message()).format());
+
+			throw new APIException(HttpStatus.BAD_REQUEST, APIResponse.error(HeaderCode.FAIL_TO_ADD_USER));
+		}
+
+		// To Creatred the Encrypted Login
+		EncryptionResponse encrytionResponse = new EncryptionResponse();
+		ResponseEntity encryptResp = encryptionResource.getEncryptionKey(httpServletContext.getUser(),
+				httpServletContext.getMerchant(), httpServletContext.getBank(), false);
+
+		if (HttpStatus.BAD_REQUEST.value() <= encryptResp.getStatusCodeValue()) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Fail to Fetch the Key for hasing.").format());
+
+			throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR, APIResponse.error(HeaderCode.INTERNAL_ERROR));
+		}
+
+		encrytionResponse = (EncryptionResponse) encryptResp.getBody();
+		newUser.setEncryptionKey(encrytionResponse.getKey());
+		newUser.setEncryptionAlgo(encrytionResponse.getAlgo());
+		newUser.setEncryptionPadding(encrytionResponse.getPadding());
+		newUser.setEncryptionKeyExpiryTime(encrytionResponse.getExpiryTime());
+
+		// This is due to Transaction overide.
+		User updatedUser = userLoginResource.updateUser(newUser);
+
+		// Not able to updated the Customer
+		if (updatedUser == null) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Fail to verify user.")
+					.data("response ", response).format());
+			response.addHeaderCode(HeaderCode.INTERNAL_ERROR);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+		}
+
+		List<CustomerAccount> cActs = this.customerDBService.getAccountByHashedLogin(
+				Utils.getHashedLogin(StringUtils.stripStart(createReq.getAccountNumber(), "0")),
+				DBConstants.CustomerAccountStatus.ACTIVE.value());
+		CustomerAccountResponse cutomerAccountResponse = new CustomerAccountResponse();
+		if (CollectionUtils.isNotEmpty(cActs)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Account Number already present")
+					.format());
+			boolean addAccountFlag = true;
+			for (CustomerAccount cAct : cActs) {
+
+				if (Hibernate.isInitialized(cAct.getUser())) {
+					Hibernate.initialize(cAct.getUser());
+				}
+
+				if (updatedUser.getId() == cAct.getUser().getId()) {
+
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("Customer Account Already exist")
+							.data("Account hashedlogin", cAct.getHashedLogin())
+							.data("create account req hashed login",
+									Utils.getHashedLogin(StringUtils.stripStart(createReq.getAccountNumber(), "0")))
+							.format());
+					cutomerAccountResponse.setCardId(cAct.getUserCardId());
+					addAccountFlag = false;
+					break;
+				}
+
+			}
+
+			if (addAccountFlag) {
+				CustomerAccount customerAccount = populateCustomerAccount(cActs.get(NumberUtils.INTEGER_ZERO),
+						updatedUser, createReq);
+
+				customerAccount = tollRechargeResource.addAccount(customerAccount);
+				if (customerAccount == null) {
+					LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("Customer Account not added").format());
+				}
+				cutomerAccountResponse.setCardId(customerAccount.getUserCardId());
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Customer Account added")
+						.format());
+			}
+		} else {
+
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Customer Account Not exist or is inactive so Creating it").format());
+
+			// Add the Account in payment source.
+			CustomerAccountRequest addAccount = new CustomerAccountRequest();
+			addAccount.setBankReferenceId(bank.getReferenceId());
+			addAccount.setMethodType(DBConstants.CustomerAccountMethodType.ADDED_BY_BRANCH.value());
+			addAccount.setAutoGenerateOsta(true);
+			addAccount.setAccountNumber(createReq.getAccountNumber());
+			addAccount.setOstaTTLInHrs(DBConstants.DIPCOIN_MAX_TTL_HRS);
+			addAccount.setMaskedLogin(createReq.getAccountNumber());// this is for Emailutils.
+
+			// Add customer from bank login for toll.
+			ResponseEntity addAcctResponse = this.customerResource.customerAddAccount(updatedUser, addAccount,
+					clientTransactionId, true, true, bank, null);
+
+			if (HttpStatus.BAD_REQUEST.value() <= addAcctResponse.getStatusCodeValue()) {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+						.message("Fail to Add the Account of Customer by bank.").format());
+
+				throw new APIException(HttpStatus.INTERNAL_SERVER_ERROR, APIResponse.error(HeaderCode.INTERNAL_ERROR));
+			}
+
+			// If Account Already exist then it cant register through this mode.
+			cutomerAccountResponse = new CustomerAccountResponse();
+			cutomerAccountResponse = (CustomerAccountResponse) addAcctResponse.getBody();
+
+		}
+		// createReq.setCardId(addAcctResponse.getBody());
+		// // Send the request to CustomerRegistration.
+		ResponseEntity registerCustResp = null;
+		try {
+			registerCustResp = this.tollServicesResource.addAndUpdateTollCustomer(updatedUser, bankUser, bank, rcDoc,
+					idProof, request, RegistrationType.DEFAULT.value(), clientTransactionId);
+		} catch (APIException e) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll Tag Registration failed")
+					.format());
+			registerCustResp = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getResponse());
+		} catch (Exception e) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll Tag Registration failed")
+					.format());
+			registerCustResp = ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(new APIResponse().addHeaderCode(HeaderCode.BANK_ACCOUNT_HOLD_NOT_PERMITTED));
+		}
+		if (registerCustResp != null && HttpStatus.BAD_REQUEST.value() <= registerCustResp.getStatusCodeValue()) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll Tag Registration failed")
+					.data("cardId", cutomerAccountResponse.getCardId()).data("phone", updatedUser.getPhone()).format());
+
+			return registerCustResp;
+		}
+
+		// Adding the count to metrix
+		tollMetricRegistry.numberOfTagsAppliedByBank().increment();
+
+		response.addHeaderCode(HeaderCode.USER_ACCOUNT_ADDED);
+		return ResponseEntity.status(HttpStatus.OK).body(response);
+	}
+
+	public CustomerAccount populateCustomerAccount(CustomerAccount cAccount, User user,
+			TollRegistrationRequest createReq) throws Exception {
+		CustomerAccount customerAccount = new CustomerAccount();
+		customerAccount.setAccountNumber(cAccount.getAccountNumber());
+		customerAccount.setBank(cAccount.getBank());
+		customerAccount.setBankUId(cAccount.getBankUId());
+		customerAccount.setClientTransactionId(cAccount.getClientTransactionId());
+		customerAccount.setDipcoinExpiryTTL(cAccount.getDipcoinExpiryTTL());
+		customerAccount.setDipcoinAutoGenerate(cAccount.getDipcoinAutoGenerate());
+		customerAccount.setHashedLogin(cAccount.getHashedLogin());
+		customerAccount.setIFSCCode(cAccount.getIFSCCode());
+		customerAccount.setIPAddress(httpServletContext.getOriginIp());
+		customerAccount.setIsPrimary(cAccount.getIsPrimary());
+		customerAccount.setIsVerified(cAccount.getIsVerified());
+		customerAccount.setKycFlag(cAccount.getKycFlag());
+		customerAccount.setKycNumber(cAccount.getKycNumber());
+		customerAccount.setLogin(cAccount.getLogin());
+		customerAccount.setMaxCoinLimit(cAccount.getMaxCoinLimit());
+		customerAccount.setMobileNumber(cAccount.getMobileNumber());
+		customerAccount.setOtp(cAccount.getOtp());
+		customerAccount.setPerMonthLimit(cAccount.getPerMonthLimit());
+		customerAccount.setRawData(cAccount.getRawData());
+		customerAccount.setStatus(cAccount.getStatus());
+		customerAccount.setThresholdAmount(cAccount.getThresholdAmount());
+		customerAccount.setTpin(cAccount.getTpin());
+		customerAccount.setTpinEnable(cAccount.getTpinEnable());
+		customerAccount.setTpinLength(cAccount.getTpinLength());
+		customerAccount.setTpinSalt(cAccount.getTpinSalt());
+		customerAccount.setTypeOfMethod(DBConstants.CustomerAccountMethodType.ADDED_BY_BRANCH.value());
+		customerAccount.setUser(user);
+		customerAccount.setVerificationTime(cAccount.getVerificationTime());
+		customerAccount.setHashedAccountNumber(cAccount.getHashedAccountNumber());
+		customerAccount.setRawAccountNumber(cAccount.getRawAccountNumber());
+
+		return customerAccount;
+	}
 
 }
