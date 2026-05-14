@@ -131,6 +131,10 @@ public class TollRechargeResource {
 
 	@Autowired
 	private RedissonClient redissonclient;
+	
+	public CustomerAccount addAccount(CustomerAccount customerAccount) {
+	    return this.customerDBService.addAccount(customerAccount);
+	  }
 
 	/**
 	 * addRechargeAmount is adding the recharge into the recharge table. It will

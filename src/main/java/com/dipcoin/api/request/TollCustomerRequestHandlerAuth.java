@@ -10,6 +10,8 @@ import javax.ws.rs.core.HttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import com.dipcoin.api.resource.SystemResource;
+import com.dipcoin.api.resource.TollBankResource;
+
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -36,6 +38,7 @@ import com.dipcoin.api.model.CustomerDipcoinResponse;
 import com.dipcoin.api.model.TollRechargeResponse;
 import com.dipcoin.api.model.TollRegistrationRequest;
 import com.dipcoin.api.model.TollRegistrationResponse;
+import com.dipcoin.api.model.TollTagRequest;
 import com.dipcoin.api.resource.CustomerDipcoinResource;
 import com.dipcoin.api.resource.TollCustomerResource;
 import com.dipcoin.partner.toll.commons.TollConstant.RegistrationType;
@@ -68,6 +71,9 @@ public class TollCustomerRequestHandlerAuth {
 	private SystemResource systemResource;
     
     @Autowired
+    private TollBankResource tollServiceBankResource;
+    
+    @Autowired
     private CustomerDipcoinResource customerDipcoinResource;
 
     @Autowired
@@ -87,12 +93,6 @@ public class TollCustomerRequestHandlerAuth {
             @ApiParam(value = APIDoc.clientTransactionId, required = true) @RequestParam(value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
             @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
             throws Exception, APIException {
-    	
-    	 System.out.println("rcDoc: " + rcDoc);
-    	    System.out.println("rcDoc length: " + (rcDoc != null ? rcDoc.length : "NULL"));
-    	    System.out.println("idProof: " + idProof);
-
-
         return tollServicesResource.addAndUpdateTollCustomer(httpServletContext.getUser(), null, null, rcDoc, idProof,
                 request, RegistrationType.DEFAULT.value(), clientTransactionId);
     }
@@ -442,5 +442,23 @@ public class TollCustomerRequestHandlerAuth {
 
 		return tollServicesResource.deactivateTollTagByCustomer(httpServletContext.getUser(), encryptedTTID);
 	}
+	
+	// Send pdf or xls to Customer through Email
+
+	  @PostMapping("tollTag/statement")
+	  @ApiOperation(value = "Customer user to  get pdf or excelon mail regarding fastag transactions",
+	      notes = "Customer user to get pdf or excel on mail regarding fastag transactions")
+	  @ApiResponses(value = {
+	      @ApiResponse(code = 200, message = "file mailed successfully", response = APIResponse.class),
+	      @ApiResponse(code = 500, message = "Internal Error", response = APIResponse.class)})
+	  public ResponseEntity getStatement(
+	      @ApiParam(value = "Toll Tag details",
+	          required = true) @RequestBody final TollTagRequest statementRequest,
+	      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
+	  			throws Exception {
+
+	    return tollServiceBankResource.getStatement(httpServletContext.getUser(), null,
+	        statementRequest);
+	  }
 	
 }

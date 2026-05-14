@@ -1256,6 +1256,23 @@ public class TollCustomerResource {
 
 		}
 
+		for (TollTagRequest tollTagRequest : createReq.getVehicleList()) {
+			if (tollTagRequest == null || StringUtils.isBlank(tollTagRequest.getRegistrationNo())) {
+				continue;
+			}
+
+			String registrationNo = tollTagRequest.getRegistrationNo().replaceAll(" ", "").trim();
+			TollTag existingTollTag = this.tollDBService.findTollTagByRegistrationNo(registrationNo);
+
+			if (existingTollTag != null && existingTollTag.getTollRegistration() != null
+					&& existingTollTag.getTollRegistration().getUserId() == user.getId()) {
+				createReq.setId(existingTollTag.getTollRegistration().getId());
+				createReq.setStatus(existingTollTag.getTollRegistration().getStatus());
+				tollTagRequest.setId(existingTollTag.getId());
+				tollTagRequest.setStatus(existingTollTag.getStatus());
+			}
+		}
+
 		// pass lien debit credit method
 		/*
 		 * ResponseEntity lienDebitRes = this.lienDebitCredit(customerAccount, request);
@@ -1452,7 +1469,7 @@ public class TollCustomerResource {
 			TollRegistration registerationSaveObj = populateForSaveAndUpdateTollCustomer(user, bankUser, createReq,
 					clientTransactionId, customerAccount, feesAndDeposits, registrationType, null);
 
-			tollRegistration = tollDBService.asyncSave(registerationSaveObj).get();
+			tollRegistration = tollDBService.save(registerationSaveObj);
 
 			if (null == tollRegistration) {
 
@@ -3191,6 +3208,23 @@ public class TollCustomerResource {
 
 		}
 
+		for (TollTagRequest tollTagRequest : createReq.getVehicleList()) {
+			if (tollTagRequest == null || StringUtils.isBlank(tollTagRequest.getRegistrationNo())) {
+				continue;
+			}
+
+			String registrationNo = tollTagRequest.getRegistrationNo().replaceAll(" ", "").trim();
+			TollTag existingTollTag = this.tollDBService.findTollTagByRegistrationNo(registrationNo);
+
+			if (existingTollTag != null && existingTollTag.getTollRegistration() != null
+					&& existingTollTag.getTollRegistration().getUserId() == user.getId()) {
+				createReq.setId(existingTollTag.getTollRegistration().getId());
+				createReq.setStatus(existingTollTag.getTollRegistration().getStatus());
+				tollTagRequest.setId(existingTollTag.getId());
+				tollTagRequest.setStatus(existingTollTag.getStatus());
+			}
+		}
+
 		// pass lien debit credit method
 		/*
 		 * ResponseEntity lienDebitRes = this.lienDebitCredit(customerAccount, request);
@@ -3387,7 +3421,7 @@ public class TollCustomerResource {
 			TollRegistration registerationSaveObj = populateForSaveAndUpdateTollCustomer(user, bankUser, createReq,
 					clientTransactionId, customerAccount, feesAndDeposits, registrationType, null);
 
-			tollRegistration = tollDBService.asyncSave(registerationSaveObj).get();
+			tollRegistration = tollDBService.save(registerationSaveObj);
 
 			if (null == tollRegistration) {
 
