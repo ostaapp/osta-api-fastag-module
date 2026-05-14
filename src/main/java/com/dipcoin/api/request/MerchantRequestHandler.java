@@ -49,6 +49,7 @@ import com.dipcoin.api.resource.MerchantSettlementResource;
 //import com.dipcoin.api.resource.MerchantSettlementResource;
 //import com.dipcoin.api.resource.MiscellaneousResource;
 import com.dipcoin.db.services.commons.DBConstants.ReportType;
+import com.dipcoin.db.services.model.Merchant;
 import com.dipcoin.db.services.model.User;
 
 import io.micrometer.core.annotation.Timed;
@@ -99,7 +100,8 @@ public class MerchantRequestHandler extends RequestHandler {
       throws Exception {
 
 	  User user = httpServletContext.getUser();
-	  return merchantResource.getMerchant(user, user.getBankMerchantId());
+	  Merchant merchant = httpServletContext.getMerchant();
+	  return merchantResource.getMerchant(user, merchant);
   }
   
   @GetMapping("reports/aggregate")

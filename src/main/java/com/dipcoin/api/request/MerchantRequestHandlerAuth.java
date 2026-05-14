@@ -23,6 +23,7 @@ import com.dipcoin.api.model.MerchantInfoResponse;
 import com.dipcoin.api.model.SettlementsResponse;
 import com.dipcoin.api.resource.MerchantResource;
 import com.dipcoin.api.resource.MerchantSettlementResource;
+import com.dipcoin.db.services.model.Merchant;
 import com.dipcoin.db.services.model.User;
 
 import io.micrometer.core.annotation.Timed;
@@ -67,8 +68,9 @@ public class MerchantRequestHandlerAuth extends RequestHandler {
 	      throws Exception, APIException {
 
 	    User user = httpServletContext.getUser();
+	    Merchant merchant = httpServletContext.getMerchant();
 
-	    return merchantResource.getMerchant(user, user.getBankMerchantId());
+	    return merchantResource.getMerchant(user, merchant);
 	}
 
   

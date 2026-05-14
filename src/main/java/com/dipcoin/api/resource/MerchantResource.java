@@ -190,8 +190,11 @@ public class MerchantResource extends PartnerResource {
 	   * Get Merchant Info
 	   */
 	  public ResponseEntity getMerchant(final User user, final Integer merchantId) throws Exception {
+		  return getMerchant(user, merchantDBService.getMerchant(merchantId));
+	  }
 
-		  Merchant merchant = merchantDBService.getMerchant(merchantId);
+	  public ResponseEntity getMerchant(final User user, final Merchant merchant) throws Exception {
+
 	    if (user != null && merchant != null) {
 	      if ((!this.userDBService.isMerchantSuperAdmin(user)
 	          && !this.userDBService.isMerchantAdmin(user)

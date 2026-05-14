@@ -196,7 +196,28 @@ public class WalletResource {
 
 		    if (TransactionRequestType.CREATEOSTA.value().equals(topupReq.getRequestType())) {
 		        // ✅ For CREATEOSTA, get existing account or create new one
-		        customerAccount = getCustomerAccount(user.getId(), bank.getId(), null);
+		        customerAccount = null;
+		        if (StringUtils.isNotBlank(topupReq.getWalletId())) {
+		            customerAccount = customerDBService.getAccount(topupReq.getWalletId());
+
+		            if (customerAccount == null || customerAccount.getUser() == null
+		                || customerAccount.getUser().getId() != user.getId()
+		                || customerAccount.getStatus() != CustomerAccountStatus.ACTIVE.value()) {
+		                LOG.error("Customer account not found for walletId: " + topupReq.getWalletId());
+		                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_TOPUP_FAILED);
+		                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(paymentTopupWalletResponse);
+		            }
+
+		            if (!topupReq.getWalletId().equals(customerAccount.getBankUId())) {
+		                LOG.info("WALLET_ID_INVALID");
+		                paymentTopupWalletResponse.addHeaderCode(HeaderCode.WALLET_TOPUP_FAILED);
+		                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(paymentTopupWalletResponse);
+		            }
+		        }
+
+		        if (customerAccount == null) {
+		            customerAccount = getCustomerAccount(user.getId(), bank.getId(), null);
+		        }
 		        
 		        if (customerAccount == null) {
 		            // Fresh user - need to create wallet

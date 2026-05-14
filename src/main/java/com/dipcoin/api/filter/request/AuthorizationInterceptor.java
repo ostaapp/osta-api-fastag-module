@@ -14,6 +14,7 @@ import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.MerchantDBService;
 import com.dipcoin.db.services.UserDBService;
+import com.dipcoin.db.services.commons.DBConstants;
 import com.dipcoin.db.services.model.Bank;
 //import com.dipcoin.db.services.model.CustomerAccount;
 import com.dipcoin.db.services.model.Merchant;
@@ -197,20 +198,32 @@ public class AuthorizationInterceptor implements RequestInterceptor {
         // set user in context
         httpServletContext.setUser(fullUser);
 
-        // set bank in context
+        // set selected partner in context
         if (fullUser.getBankMerchantId() > 0) {
+          if (DBConstants.MerchantRoles.contains(fullUser.getRole())) {
+            Merchant merchant = merchantDBService.getMerchant(fullUser.getBankMerchantId());
+            if (merchant != null) {
+              httpServletContext.setMerchant(merchant);
 
+              log.info(LogFormatter.instance(httpServletContext.getTraceId())
+                  .message("Merchant set in context")
+                  .data("MerchantId", merchant.getId())
+                  .data("MerchantReferenceId", merchant.getReferenceId())
+                  .format());
+            }
+          } else if (DBConstants.BankRoles.contains(fullUser.getRole())) {
             Bank bank = bankDBService.getBank(fullUser.getBankMerchantId());
 
             if (bank != null) {
-                httpServletContext.setBank(bank);
+              httpServletContext.setBank(bank);
 
-                log.info(LogFormatter.instance(httpServletContext.getTraceId())
-                    .message("Bank set in context")
-                    .data("BankId", bank.getId())
-                    .data("BankIIN", bank.getIin())
-                    .format());
+              log.info(LogFormatter.instance(httpServletContext.getTraceId())
+                  .message("Bank set in context")
+                  .data("BankId", bank.getId())
+                  .data("BankIIN", bank.getIin())
+                  .format());
             }
+          }
         }
         log.debug(LogFormatter.instance(httpServletContext.getTraceId())
             .message("JWT validated and user set in context")
