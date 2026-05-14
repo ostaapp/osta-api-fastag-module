@@ -53,9 +53,9 @@ import io.swagger.annotations.ApiResponses;
  * Uses Bearer token authentication instead of cookie-based auth.
  * Base path: /v1/jwt/merchant/toll
  */
-@Api(value = "/v1/jwt/toll/merchant")
+@Api(value = "/v1/jwt/merchant/toll")
 @RestController
-@RequestMapping(value = "/v1/jwt/toll/merchant", consumes = { MediaType.APPLICATION_JSON_VALUE,
+@RequestMapping(value = "/v1/jwt/merchant/toll", consumes = { MediaType.APPLICATION_JSON_VALUE,
         MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE }, produces = { MediaType.APPLICATION_JSON_VALUE,
                 MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE })
 @CrossOrigin
