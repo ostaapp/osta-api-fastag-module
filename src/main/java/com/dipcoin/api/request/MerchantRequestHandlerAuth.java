@@ -58,7 +58,7 @@ public class MerchantRequestHandlerAuth extends RequestHandler {
   /*
    * Get Merchant Info
    */
-  @GetMapping
+  @GetMapping("merchant")
   @ApiOperation(value = "Merchant Info", notes = "API to get merchant info.",
       response = MerchantInfoResponse.class)
   public ResponseEntity get(
