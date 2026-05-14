@@ -30,8 +30,10 @@ import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.BankInfoResponse;
+import com.dipcoin.api.model.ChargebackResponse;
 import com.dipcoin.api.model.TollRegistrationResponse;
 import com.dipcoin.api.model.UserInfoResponse;
+import com.dipcoin.api.resource.ChargebackResource;
 import com.dipcoin.api.resource.TollBankResource;
 import com.dipcoin.api.resource.TollCustomerResource;
 import com.dipcoin.api.resource.TollMerchantResource;
@@ -80,6 +82,9 @@ public class TollMerchantRequestHandlerAuth extends RequestHandler {
 
    	@Autowired
    	private UserDBService userDBService;
+   	
+   	@Autowired
+    private ChargebackResource chargebackResource;
     
     @GetMapping
    	@ApiOperation(value = "Get Tag based on merchnat and other filters", notes = "API to get  Toll Customer based on  Merchant and other filters", response = TollRegistrationResponse.class)
@@ -321,4 +326,27 @@ public class TollMerchantRequestHandlerAuth extends RequestHandler {
 
    	    return tollMerchantResource.downloadBulkRegistrationSampleFile(httpServletContext.getUser());
    	}
+   	
+   	@GetMapping("chargeback/transaction")
+    @ApiOperation(value = "Get chargeback transaction initiated by customer against a merchant",
+        notes = "API to get chargeback transaction on a merchant.",
+        response = ChargebackResponse.class)
+    public ResponseEntity getChargeBackTransaction(
+        @ApiParam(value = "Status of chargeback transaction", required = false,
+            defaultValue = "") @RequestParam(value = "status", required = false) final Integer status,
+        @ApiParam(value = "Start Time", required = false, defaultValue = "0") @RequestParam(
+            value = "startTime", defaultValue = "0", required = false) Long startTime,
+        @ApiParam(value = "End Time", required = false, defaultValue = "2147483646999") @RequestParam(
+            value = "endTime", defaultValue = "2147483646999", required = false) Long endTime,
+        @ApiParam(value = "start", required = false, defaultValue = "0") @RequestParam(
+            value = "start", defaultValue = "0", required = false) Integer start,
+        @ApiParam(value = "count", required = false, defaultValue = "100") @RequestParam(
+            value = "count", defaultValue = "100", required = false) Integer count,
+        @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
+		            throws Exception, APIException {
+
+      return chargebackResource.getChargebackTransaction(httpServletContext.getUser(), null, status,
+          startTime, endTime, APIConstants.MERCHANT, start, count);
+
+    }
 }

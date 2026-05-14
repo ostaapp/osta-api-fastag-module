@@ -141,9 +141,9 @@ public class MerchantResource extends PartnerResource {
 //  @Autowired
 //  private ApplicationProperties applicationProperties;
 
-//  @Autowired
-//  private ChargebackResource chargebackResource;
-//
+  @Autowired
+  private ChargebackResource chargebackResource;
+
 //  @Autowired
 //  MiscellaneousResource miscellaneousResource;
   
@@ -567,5 +567,39 @@ public class MerchantResource extends PartnerResource {
 
 			}
 		}
+		
+		 public ResponseEntity getChargeBackTransactions(User user, String partnerRefId, Integer status,
+			      Long startDate, Long endDate, String partner, Integer start, Integer count) {
+
+			    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			        .data("MerchnatUserId :-", user.getId()).format());
+
+			    ChargebackResponse chargebackResponse = new ChargebackResponse();
+			    List<Chargeback> chargebackTransaction = new ArrayList<Chargeback>();
+
+			    if (!this.userDBService.isMerchantUser(user) && !this.userDBService.isMerchantSuperAdmin(user)
+			        && !this.userDBService.isMerchantAdmin(user)) {
+			      LOG.error(HeaderCode.USER_UNAUTHORIZED);
+
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+			    }
+			    Merchant merchant = this.merchantDBService.getMerchant(user.getBankMerchantId());
+
+			    if (merchant == null) {
+			      LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+			          .data("Merchnat :-", HttpStatus.BAD_REQUEST).format());
+			      chargebackResponse.addHeaderCode(HeaderCode.INVALID_REQUEST);
+
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(chargebackResponse);
+			    }
+
+			    chargebackTransaction = chargebackResource.fetchChargebackTransaction(merchant.getId(), null, status,
+			        startDate, endDate, start, count);
+
+			    chargebackResponse.setChargebackTransaction(chargebackTransaction);
+			    return ResponseEntity.ok(chargebackResponse);
+
+			  }
 
 }

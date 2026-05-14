@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.ws.rs.core.Response.Status;
 import javax.xml.bind.JAXB;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
@@ -45,6 +46,7 @@ import com.dipcoin.api.commons.TollProperties;
 import com.dipcoin.api.config.ApplicationProperties;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.ChargebackResponse;
 import com.dipcoin.api.model.CustomerBankVehicleVerificationResponse;
 import com.dipcoin.api.model.Detail;
 import com.dipcoin.api.model.Head;
@@ -78,6 +80,7 @@ import com.dipcoin.db.services.commons.DBConstants.TollTagExcCodeStatus;
 import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.BankTransaction;
+import com.dipcoin.db.services.model.Chargeback;
 import com.dipcoin.db.services.model.Dipcoin;
 import com.dipcoin.db.services.model.DipcoinTransaction;
 import com.dipcoin.db.services.model.Epc;
@@ -144,6 +147,9 @@ public class BrontooResource {
   
   @Autowired
   private OfflineJobClient offlineJobClient;
+  
+  @Autowired
+  private ChargebackResource chargebackResource;
   
   @Autowired
   @Qualifier("debitsReqpayRabbitTemplate")
@@ -1476,6 +1482,43 @@ public class BrontooResource {
 		}
 
 	}
+    
+    public ResponseEntity getChargeBackTransactions(User user, String partnerRefId, Integer status,
+    	      Long startDate, Long endDate, String partner, Integer start, Integer count) {
+
+    	    ChargebackResponse chargebackResponse = new ChargebackResponse();
+    	    List<Chargeback> chargebackTransaction = new ArrayList<Chargeback>();
+
+    	    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("UserId :-", user.getId())
+    	        .format());
+
+    	    if (!this.userDBService.brontooRepresentative(user)) {
+
+    	      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+    	          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+    	    }
+
+    	    if (partnerRefId != null) {
+
+    	      Merchant merchant = this.merchantDBService.getMerchant(partnerRefId);
+
+    	      if (merchant == null) {
+    	        LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+    	            .data("Merchnat :-", Status.BAD_REQUEST).format());
+    	        chargebackResponse.addHeaderCode(HeaderCode.INVALID_REQUEST);
+    	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(chargebackResponse);
+    	      }
+
+    	      chargebackTransaction = chargebackResource.fetchChargebackTransaction(merchant.getId(), null,
+    	          status, startDate, endDate, start, count);
+    	    } else {
+    	      chargebackTransaction = chargebackResource.fetchChargebackTransaction(null, null, status, startDate,
+    	          endDate, start, count);
+    	    }
+
+    	    chargebackResponse.setChargebackTransaction(chargebackTransaction);
+    	    return ResponseEntity.ok(chargebackResponse);
+    	  }
     
 
 }

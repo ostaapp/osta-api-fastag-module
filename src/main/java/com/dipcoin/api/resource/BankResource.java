@@ -4,12 +4,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.springframework.util.CollectionUtils;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,12 +28,14 @@ import com.dipcoin.api.model.APICustomization;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.BankInfoResponse;
 import com.dipcoin.api.model.BanksResponse;
+import com.dipcoin.api.model.ChargebackResponse;
 import com.dipcoin.api.model.Pagination;
 import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConstants.BankStatus;
 import com.dipcoin.db.services.commons.DBConstants.BankType;
 import com.dipcoin.db.services.model.Bank;
+import com.dipcoin.db.services.model.Chargeback;
 import com.dipcoin.db.services.model.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -58,6 +59,9 @@ public class BankResource extends PartnerResource {
 	
 	@Autowired
 	private BankDBService bankDBService;
+	
+	@Autowired
+	private ChargebackResource chargebackResource;
 	
 	/*
 	 * Get banks info list
@@ -150,5 +154,39 @@ public class BankResource extends PartnerResource {
 
 		return ResponseEntity.ok(response);
 	}
+	
+	public ResponseEntity getChargeBackTransactions(User user, String partnerRefId, Integer status,
+		      Long startDate, Long endDate, String partner, Integer start, Integer count) {
+
+		    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+		        .data("BankUserId :-", user.getId()).format());
+
+		    ChargebackResponse chargebackResponse = new ChargebackResponse();
+		    List<Chargeback> chargebackTransaction = new ArrayList<Chargeback>();
+		    
+		    
+		    if(!this.userDBService.bankRepresentative(user)) {
+		      LOG.error(HeaderCode.USER_UNAUTHORIZED);
+
+		      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+		          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		    }
+
+		    Bank bank = this.bankDBService.getBank(user.getBankMerchantId());
+
+		    if (bank == null) {
+		      LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+		          .data("bank :-", HttpStatus.BAD_REQUEST).format());
+		      chargebackResponse.addHeaderCode(HeaderCode.INVALID_REQUEST);
+
+		      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(chargebackResponse);
+		    }
+
+		    chargebackTransaction = chargebackResource.fetchChargebackTransaction(null, bank.getId(),
+		        status, startDate, endDate, start, count);
+
+		    chargebackResponse.setChargebackTransaction(chargebackTransaction);
+		    return ResponseEntity.ok(chargebackResponse);
+		  }
 
 }

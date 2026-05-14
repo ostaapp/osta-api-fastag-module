@@ -40,6 +40,7 @@ import com.dipcoin.api.config.ApplicationProperties;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APICustomization;
 import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.ChargebackResponse;
 import com.dipcoin.api.model.CreateUserWalletRequest;
 import com.dipcoin.api.model.CustomerAccountRequest;
 import com.dipcoin.api.model.CustomerAccountResponse;
@@ -62,6 +63,7 @@ import com.dipcoin.bank.services.utils.BankRequestContext;
 import com.dipcoin.bank.services.utils.BankUtils;
 import com.dipcoin.db.services.BankDBService;
 import com.dipcoin.db.services.CustomerDBService;
+import com.dipcoin.db.services.DipcoinDBService;
 import com.dipcoin.db.services.UserDBService;
 import com.dipcoin.db.services.commons.DBConfig;
 import com.dipcoin.db.services.commons.DBConstants;
@@ -72,12 +74,14 @@ import com.dipcoin.db.services.commons.DBConstants.BankTransactionsStatus;
 import com.dipcoin.db.services.commons.DBConstants.BooleanStatus;
 import com.dipcoin.db.services.commons.DBConstants.CustomerAccountMethodType;
 import com.dipcoin.db.services.commons.DBConstants.CustomerAccountStatus;
+import com.dipcoin.db.services.commons.DBConstants.DipcoinTransactionType;
 import com.dipcoin.db.services.commons.DBConstants.TransactionSource;
 import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.BankAccount;
 import com.dipcoin.db.services.model.BankTransaction;
 import com.dipcoin.db.services.model.CustomerAccount;
+import com.dipcoin.db.services.model.DipcoinTransaction;
 import com.dipcoin.db.services.model.Merchant;
 import com.dipcoin.db.services.model.User;
 import com.dipcoin.metrics.PaymentSourceMetricRegistry;
@@ -141,7 +145,14 @@ public class CustomerResource {
 	private DBConfig dbConfig;
 	
 	@Autowired
-	  private OAuth2CustomerResource oAuth2CustomerResource;
+	private OAuth2CustomerResource oAuth2CustomerResource;
+	
+	@Autowired
+	private DipcoinDBService coinDBService;
+	
+	@Autowired
+	private ChargebackResource chargebackResource;
+
 
 	@Autowired
 	@Lazy
@@ -1338,6 +1349,29 @@ public class CustomerResource {
 		    response.addHeaderCode(HeaderCode.BANK_ACCOUNT_ADDED);
 		    response.setCardId(customerAccount.getCardId());
 		    return ResponseEntity.status(addedCustomerAccount.getStatusCode()).body(response);
+
+		  }
+	
+	public ResponseEntity getChargeBackTransactions(User user, String partnerRefId, Integer status,
+		      Long startDate, Long endDate, String partner, Integer start, Integer count) {
+
+		    List<ChargebackResponse> chargebackResponse = new ArrayList<ChargebackResponse>();
+
+		    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).data("UserId :-", user.getId())
+		        .format());
+
+		    if (!this.userDBService.isCustomer(user)) {
+		      LOG.info(HeaderCode.USER_UNAUTHORIZED);
+		      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+		          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+		    }
+
+		    List<DipcoinTransaction> dipcoinTransaction = coinDBService.getByUserIdAndType(user.getId(),
+		        Arrays.asList(DipcoinTransactionType.CHARGE_BACK.value()));
+
+		    chargebackResponse = chargebackResource.fetchChargeBackTransactionData(dipcoinTransaction);
+
+		    return ResponseEntity.ok(chargebackResponse);
 
 		  }
 
