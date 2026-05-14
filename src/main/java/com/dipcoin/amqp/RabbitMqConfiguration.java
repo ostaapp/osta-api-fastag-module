@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.context.request.RequestContextListener;
 import com.dipcoin.commons.EncryptedPropertiesUtils;
+import com.dipcoin.commons.HttpsUtils;
 import com.dipcoin.commons.LogFormatter;
 import com.dipcoin.commons.LogFormatter.Mask;
 import com.dipcoin.tcp.TCPMessageListener;
@@ -65,6 +66,13 @@ public class RabbitMqConfiguration {
   @Value("${com.dipcoin.amqp.RabbitMqConfiguration.vhost}")
   private String vhost;
 
+  @Value("${com.dipcoin.amqp.RabbitMqConfiguration.uri:}")
+  private String uri;
+  @Value("${com.dipcoin.amqp.RabbitMqConfiguration.validate-server-certificate:false}")
+  private boolean validateServerCertificate;
+  @Value("${com.dipcoin.amqp.listener.auto-startup:true}")
+  private boolean listenerAutoStartup;
+
   @Value("#{amqpEncryptedPropertiesUtils.decrypt('${com.dipcoin.amqp.RabbitMqConfiguration.password}')}")
   private String password;
   @Bean
@@ -76,12 +84,53 @@ public class RabbitMqConfiguration {
   public CachingConnectionFactory connectionFactory() {
     LOG.debug(LogFormatter.instance().message("Configuring RabbitMQ ConnectionFactory")
         .data("hostname", hostname).data("user", user).data("vhost", vhost)
+        .data("uriConfigured", hasText(uri))
+        .data("validateServerCertificate", validateServerCertificate)
+        .data("listenerAutoStartup", listenerAutoStartup)
         .maskedData("password", Mask.PASSWORD_MASKED.value()).format());
-    CachingConnectionFactory connectionFactory = new CachingConnectionFactory(hostname);
-    connectionFactory.setUsername(user);
-    connectionFactory.setPassword(password);
-    connectionFactory.setVirtualHost(vhost);
-    return connectionFactory;
+    try {
+      com.rabbitmq.client.ConnectionFactory rabbitConnectionFactory =
+          new com.rabbitmq.client.ConnectionFactory();
+      if (hasText(uri)) {
+        rabbitConnectionFactory.setUri(uri);
+      } else {
+        rabbitConnectionFactory.setHost(hostname);
+      }
+      rabbitConnectionFactory.setUsername(user);
+      rabbitConnectionFactory.setPassword(password);
+      rabbitConnectionFactory.setVirtualHost(vhost);
+      if (isAmqpsUri()) {
+        configureSsl(rabbitConnectionFactory);
+      }
+      CachingConnectionFactory cachingConnectionFactory = new CachingConnectionFactory(rabbitConnectionFactory);
+      if (rabbitConnectionFactory.getHost() != null) {
+        cachingConnectionFactory.setHost(rabbitConnectionFactory.getHost());
+      }
+      cachingConnectionFactory.setPort(rabbitConnectionFactory.getPort());
+      return cachingConnectionFactory;
+    } catch (Exception e) {
+      throw new IllegalStateException("Failed to configure RabbitMQ ConnectionFactory", e);
+    }
+  }
+
+  private void configureSsl(com.rabbitmq.client.ConnectionFactory rabbitConnectionFactory)
+      throws Exception {
+    if (validateServerCertificate) {
+      rabbitConnectionFactory.useSslProtocol();
+      return;
+    }
+
+    javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
+    sslContext.init(null, HttpsUtils.TRUST_ALL_CERTS, null);
+    rabbitConnectionFactory.useSslProtocol(sslContext);
+  }
+
+  private boolean isAmqpsUri() {
+    return hasText(uri) && uri.trim().regionMatches(true, 0, "amqps://", 0, 8);
+  }
+
+  private boolean hasText(String value) {
+    return value != null && !value.trim().isEmpty();
   }
 
   @Bean(name = "rabbitListenerContainerFactory")

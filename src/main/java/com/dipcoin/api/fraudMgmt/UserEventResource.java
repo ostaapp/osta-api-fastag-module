@@ -73,8 +73,11 @@ public class UserEventResource {
 
     AsyncUserEventRequest<UserEvent> auer =
         getAsyncUserEventRequest(user, requestTime, event, dcoin);
-    asyncRequestAmqpTemplate.convertAndSend(RabbitMqConfiguration.AsyncUserEventQueue, auer);
-
+    try {
+      asyncRequestAmqpTemplate.convertAndSend(RabbitMqConfiguration.AsyncUserEventQueue, auer);
+    } catch (Exception e) {
+      LOG.warn("Failed to publish user event to queue (RabbitMQ unreachable), event: " + event + ", error: " + e.getMessage());
+    }
   }
 
   public boolean applyRule(User customer, User merchant, String dcoin, String requestTime,

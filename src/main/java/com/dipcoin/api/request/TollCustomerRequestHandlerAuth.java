@@ -354,8 +354,7 @@ public class TollCustomerRequestHandlerAuth {
 			@ApiParam(value = "Pre-Requisite Code", required = true) @RequestParam(value = "preRequisiteCode", required = false) final Integer preRequisiteCode,
 			@ApiParam(value = "Function Codes", required = true) @RequestParam(value = "functionCodes", required = false) final Integer functionCodes,
 			@ApiParam(value = "Fetch All Function codes", required = true) @RequestParam(value = "fetchAll", required = false) final boolean fetchAll,
-			@ApiParam(value = APIDoc.tokenNotes, required = true, defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-			@ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+			@ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
 			throws Exception, APIException {
 
 		return tollServicesResource.getDisputeOptions(httpServletContext.getUser(), preRequisiteCode, functionCodes,
