@@ -108,6 +108,7 @@ import com.dipcoin.partner.db.services.model.PartnerTransaction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dipcoin.commons.ObjectDataStore;
 
 /**
  *
@@ -134,9 +135,9 @@ public class MerchantResource extends PartnerResource {
   @Autowired
   private CryptoUtil cryptoUtil;
 
-//  @Autowired
-//  private ObjectDataStore objectDataStore;
-//
+  @Autowired
+  private ObjectDataStore objectDataStore;
+
 //  @Autowired
 //  private ApplicationProperties applicationProperties;
 
@@ -219,6 +220,7 @@ public class MerchantResource extends PartnerResource {
 	      
 	      List<Bank> fastagBanks = bankDBService.getBankByTollStatusAndStatus(BankTollStatus.ACTIVE.value(), BankStatus.ACTIVE.value());
 	      if(CollectionUtils.isEmpty(fastagBanks)) {
+	    	  LOG.info("Bank active={}, tollActive={}, fastagBanksCount={}",BankStatus.ACTIVE.value(),BankTollStatus.ACTIVE.value(),fastagBanks != null ? fastagBanks.size() : 0);     
 	    	  info.addHeaderCode(HeaderCode.TOLL_BANK_STATUS_NOT_ACTIVE);
 	          return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(info);
 	      }
@@ -600,5 +602,47 @@ public class MerchantResource extends PartnerResource {
 			    return ResponseEntity.ok(chargebackResponse);
 
 			  }
+		 
+		 public ResponseEntity deleteDocument(final User user, final Merchant merchant, Integer documentType, String documentId)
+			      throws APIException, Exception {
+			    
+			    //Validation for incoming documentType and Id
+			    if(documentType == null && StringUtils.isEmpty(documentId)) {
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			          .body(APIResponse.error(HeaderCode.MISSING_DOCUMENT_DATA));
+			    }
+			    
+			    // Check whether the Merchant is Active or not.
+			    if (!this.userDBService.isMerchantAdmin(user) && !this.userDBService.isMerchantSuperAdmin(user)
+			        && !this.userDBService.isMerchantInternalUser(user)
+			        && !this.userDBService.isBrontooAdmin(user)
+			        && !this.userDBService.isBrontooSuperAdmin(user)) {
+			      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+			          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+			    }
+
+			    MerchantDoc doc = this.merchantDBService.getMerchantDoc(merchant.getId(), documentType, documentId);
+			    if(doc == null) {
+			      return ResponseEntity.status(HttpStatus.NO_CONTENT)
+			          .body(APIResponse.error(HeaderCode.MERCHANT_DOCUMENT_DOESNT_EXIST));
+			    }
+			    
+			    String documentPath = doc.getDocumentPath();
+			    
+			    //Method call of Aws to delete the document path in S3 bucket
+			    
+			    boolean docDeleted = this.objectDataStore.delete(documentPath);
+			    
+			    if(!docDeleted) {
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			          .body(APIResponse.error(HeaderCode.FAILED_DELETION_OF_MERCHANT_DOC_FROM_S3_BUCKET));
+			    }
+			    
+			    doc = this.merchantDBService.deleteMerchantDoc(doc);
+			    
+			    return ResponseEntity.status(HttpStatus.NO_CONTENT)
+			        .body(APIResponse.error(HeaderCode.REQUEST_OK));
+			  }
+
 
 }

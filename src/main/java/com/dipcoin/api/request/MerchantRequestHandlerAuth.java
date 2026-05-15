@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -225,6 +226,21 @@ public class MerchantRequestHandlerAuth extends RequestHandler {
 
     return merchantResource.getOnboardFeesForMerchant(httpServletContext.getUser(),
         httpServletContext.getMerchant());
+  }
+  
+  @DeleteMapping("document")
+  @ApiOperation(value = "Delete the uploaded documents", notes = "API to delete the uploaded documents")
+  public ResponseEntity deleteDocument(
+      @ApiParam(value = "DocumentType",
+      required = true) @RequestParam(value = "documentType", required = true) final Integer documentType,
+      @ApiParam(value = "DocumentId",
+      required = true) @RequestParam(value = "documentId", required = true) final String documentId, 
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+    throws Exception, APIException {
+	  
+    return merchantResource.deleteDocument(httpServletContext.getUser(), httpServletContext.getMerchant(),
+       documentType, documentId);
   }
   
 //  /*
