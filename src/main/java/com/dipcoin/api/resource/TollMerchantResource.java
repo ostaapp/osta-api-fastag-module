@@ -112,6 +112,8 @@ import com.dipcoin.db.services.commons.DBConstants.TollTagApprovalStatus;
 import com.dipcoin.db.services.commons.DBConstants.TransactionSource;
 import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 import com.dipcoin.db.services.commons.DBConstants.UserStatus;
+import com.dipcoin.db.services.commons.DBConstants.VehicleType;
+import com.dipcoin.db.services.dao.TollTagDao;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.CustomerAccount;
 import com.dipcoin.db.services.model.Epc;
@@ -154,6 +156,9 @@ public class TollMerchantResource {
 
 	@Autowired
 	private TollDBService tollDBService;
+
+	@Autowired
+	private TollTagDao tollTagDao;
 
 	@Autowired
 	private TollBankResource tollServiceBankResource;
@@ -342,6 +347,7 @@ public class TollMerchantResource {
 		TollRegistrationResponse response = new TollRegistrationResponse();
 
 		final TollRegistrationRequest createReq = new ObjectMapper().readValue(request, TollRegistrationRequest.class);
+		populateCommercialVehicleFlag(createReq);
 
 		MultipartFile filepart = idProof;
 		if (null == filepart || NumberUtils.INTEGER_ZERO == rcDoc.length) {
@@ -364,7 +370,7 @@ public class TollMerchantResource {
 					.message(HeaderCode.MISSING_EPC_DATA.message())
 					.data("serialNumber",createReq.getVehicleList().get(0).getSerialNumber()).format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.MISSING_EPC_DATA));
-		} else if(epc.getStatus() == EpcStatus.USED.value()) {
+		} else if(epc.getStatus() == EpcStatus.USED.value() || epc.getStatus() == EpcStatus.PENDING.value()) {
 			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 					.message(HeaderCode.TOLL_SERIAL_NUMBER_USED.message())
 					.data("serialNumber",createReq.getVehicleList().get(0).getSerialNumber()).format());
@@ -381,6 +387,16 @@ public class TollMerchantResource {
 					.data("category",createReq.getVehicleList().get(0).getCategory())
 					.data("epc category",epc.getCategory()).format());
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.EPC_CATEGORY_MISMATCH));
+		}
+		List<TollTag> existingTagsBySerialNumber = tollTagDao
+				.findTollTagsBySerialNumberOrderByIdDesc(createReq.getVehicleList().get(0).getSerialNumber());
+		if (CollectionUtils.isNotEmpty(existingTagsBySerialNumber)) {
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+					.message(HeaderCode.TOLL_SERIAL_NUMBER_USED.message())
+					.data("serialNumber", createReq.getVehicleList().get(0).getSerialNumber())
+					.data("existingTollTagId", existingTagsBySerialNumber.get(NumberUtils.INTEGER_ZERO).getId())
+					.data("existingTollTagCount", existingTagsBySerialNumber.size()).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.TOLL_SERIAL_NUMBER_USED));
 		}
 
 		CryptoUtil.AlgoScheme algoScheme = CryptoUtil.AlgoScheme.AES_CBC_PKCS5PADDING;
@@ -638,12 +654,32 @@ public class TollMerchantResource {
 	public void removeVehicleLock(RLock vehicleNumberLock) {
 		if (vehicleNumberLock != null) {
 			try {
+				if (!vehicleNumberLock.isHeldByCurrentThread()) {
+					return;
+				}
 				vehicleNumberLock.unlock();
 				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("vehicleNumberLock unlocked")
 						.format());
 			} catch (Exception ex) {
 				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
 						.message("Exception Caught while unlocking vehicleNumberLock").format(), ex);
+			}
+		}
+	}
+
+	private void populateCommercialVehicleFlag(TollRegistrationRequest createReq) {
+		if (createReq == null || CollectionUtils.isEmpty(createReq.getVehicleList())) {
+			return;
+		}
+
+		String vehicleTypeName = createReq.getVehicleTypeName();
+		String isCommercial = StringUtils.equalsIgnoreCase(vehicleTypeName, "Commercial")
+				? VehicleType.COMMERCIAL.value()
+				: VehicleType.NOT_COMMERCIAL.value();
+
+		for (TollTagRequest tollTagRequest : createReq.getVehicleList()) {
+			if (tollTagRequest != null && StringUtils.isBlank(tollTagRequest.getIsCommercial())) {
+				tollTagRequest.setIsCommercial(isCommercial);
 			}
 		}
 	}

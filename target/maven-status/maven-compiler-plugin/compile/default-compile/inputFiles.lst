@@ -51,6 +51,7 @@ D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\ja
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\RespVehicleDetails.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TollRechargeRequest.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\partner\recharge\comm\RechargeBalanceResponse.java
+D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\ChargeBackList.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\partner\recharge\comm\RechargeJioValidateRequest.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\partner\recharge\comm\RechargePlanResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\amqp\RespVehicleDetalilsListner.java
@@ -85,6 +86,7 @@ D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\ja
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\tcp\SSLTCPServer.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\resource\CustomerResource.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\client\UserServiceClient.java
+D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\resource\ChargebackResource.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\PaymentTopupWalletResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\partner\recharge\comm\BillInfoResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TollTransactionsReport.java

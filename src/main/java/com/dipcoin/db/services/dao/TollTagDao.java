@@ -88,6 +88,8 @@ public interface TollTagDao extends JpaRepository<TollTag, Integer> {
   
   public TollTag findTollTagBySerialNumber(String serialNumber);
 
+  public List<TollTag> findTollTagsBySerialNumberOrderByIdDesc(String serialNumber);
+
   public TollTag findTollTagBySerialNumberAndBankId(String serialNumber, int bankId);
   
   public List<TollTag> findTollTagsByAccountNumberAndStatus(String accountNumber,String Status); 

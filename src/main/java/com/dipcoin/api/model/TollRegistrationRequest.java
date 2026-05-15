@@ -79,6 +79,7 @@ public class TollRegistrationRequest extends APIRequest {
   private String accountNumber;
   private BigDecimal minimumAmount;
   private String plainTempPassword;
+  private String vehicleTypeName;
   
   private Boolean miscCharges = Boolean.TRUE;
   

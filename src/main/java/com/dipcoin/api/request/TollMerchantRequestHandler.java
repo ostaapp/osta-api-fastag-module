@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.redisson.api.RLock;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -177,39 +178,58 @@ public class TollMerchantRequestHandler extends RequestHandler {
             @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(value = APIConstants.DC_LOGIN_COOKIE) String dcl)
             throws Exception, APIException {
 
-        ResponseEntity addTagResponse = tollMerchantResource.addAndUpdateTollCustomer(httpServletContext.getUser(),
-                rcDoc, idProof, request);
+        Map<String, Object> objectLookUp = null;
 
-        if (addTagResponse.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+        try {
+            ResponseEntity addTagResponse = tollMerchantResource.addAndUpdateTollCustomer(httpServletContext.getUser(),
+                    rcDoc, idProof, request);
 
-            return addTagResponse;
+            if (addTagResponse.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+
+                return addTagResponse;
+            }
+
+            objectLookUp = (Map<String, Object>) addTagResponse.getBody();
+
+            ResponseEntity addFileReponse = tollMerchantResource.addFile(httpServletContext.getUser(), rcDoc, idProof,
+                    request, objectLookUp);
+
+            if (addFileReponse.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+                removeVehicleLock(objectLookUp);
+                return addFileReponse;
+            }
+
+            ResponseEntity addMoney = tollMerchantResource.addMoney(httpServletContext.getUser(), rcDoc, idProof,
+                    request, objectLookUp);
+
+            if (addMoney.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+                removeVehicleLock(objectLookUp);
+                return addMoney;
+            }
+
+            ResponseEntity createOsta = tollMerchantResource.createOsta(httpServletContext.getUser(), rcDoc, idProof,
+                    request, objectLookUp);
+
+            if (createOsta.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
+                removeVehicleLock(objectLookUp);
+                return createOsta;
+            }
+
+            ResponseEntity updateSerialNumber = tollMerchantResource.updateSerialNumber(httpServletContext.getUser(),
+                    rcDoc, idProof, request, objectLookUp);
+            removeVehicleLock(objectLookUp);
+            return updateSerialNumber;
+        } catch (Exception ex) {
+            removeVehicleLock(objectLookUp);
+            throw ex;
         }
 
-        Map<String, Object> objectLookUp = (Map<String, Object>) addTagResponse.getBody();
+    }
 
-        ResponseEntity addFileReponse = tollMerchantResource.addFile(httpServletContext.getUser(), rcDoc, idProof,
-                request,
-                objectLookUp);
-
-        ResponseEntity addMoney = tollMerchantResource.addMoney(httpServletContext.getUser(), rcDoc, idProof, request,
-                objectLookUp);
-
-        if (addMoney.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
-
-            return addMoney;
+    private void removeVehicleLock(Map<String, Object> objectLookUp) {
+        if (objectLookUp != null) {
+            tollMerchantResource.removeVehicleLock((RLock) objectLookUp.get("vehicleNumberLock"));
         }
-
-        ResponseEntity createOsta = tollMerchantResource.createOsta(httpServletContext.getUser(), rcDoc, idProof,
-                request, objectLookUp);
-
-        if (createOsta.getStatusCodeValue() >= HttpStatus.BAD_REQUEST.value()) {
-
-            return createOsta;
-        }
-
-        return tollMerchantResource.updateSerialNumber(httpServletContext.getUser(), rcDoc, idProof, request,
-                objectLookUp);
-
     }
     
     @GetMapping("bank/list")

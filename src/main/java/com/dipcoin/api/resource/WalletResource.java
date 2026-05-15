@@ -28,7 +28,6 @@ import com.dipcoin.api.commons.APIConstants;
 import com.dipcoin.api.commons.APIConstants.TransactionRequestType;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.commons.HeaderCode;
-import com.dipcoin.api.resource.EncryptionResource;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
 import com.dipcoin.api.model.AddMoneyToWalletRequest;
@@ -83,9 +82,6 @@ public class WalletResource {
 	@Autowired
 	private BankDBService bankDBService;
 	
-	@Autowired
-	private EncryptionResource encryptionResource;
-
 	@Autowired
 	private UserDBService userDBService;
 	
@@ -774,7 +770,7 @@ public class WalletResource {
 			CreateVirtualAccountRequest createVirtualAccountRequest,
 			CreateVirtualAccountResponse createVirtualAccountResponse, User user) throws APIException {
 		
-		String encryptedPassword = encryptionResource.encrypt(user, null, bank, "P@ssword123");
+		String encryptedPassword = PASSWORD;
 		
 		CustomerAccountRequest customerAccountRequest = new CustomerAccountRequest();
 

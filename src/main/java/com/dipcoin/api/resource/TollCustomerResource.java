@@ -1853,8 +1853,13 @@ public class TollCustomerResource {
 			HttpServletContext httpServletContext, final Integer id) throws Exception, APIException {
 
 		String destinationPath = null;
+		if (filePart == null || filePart.isEmpty()) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Uploaded file is empty").format());
+			return destinationPath;
+		}
+
 		String folderName = filePart.getName().equalsIgnoreCase("idproof") ? "tollRegistrationId_" : "tollTagId_";
-		String docType = filePart.getContentType().split("/")[1];
 		// get input stream of file
 		InputStream fileInputStream = filePart.getInputStream();
 		// Check active profile whether to upload to /tmp or aws s3
@@ -4810,8 +4815,12 @@ public class TollCustomerResource {
 	
 	private String saveImageToTollTag(TollTag tollTag, MultipartFile image) throws APIException, Exception {
 		String destinationPath = null;
+		if (image == null || image.isEmpty()) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+					.message("Uploaded toll tag image is empty").format());
+			return destinationPath;
+		}
 
-		String docType = image.getContentType().split("/")[1];
 		String folderName = "tollTagId_" + tollTag.getId();
 		String fileName = image.getOriginalFilename();
 

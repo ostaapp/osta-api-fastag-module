@@ -169,6 +169,7 @@ com\dipcoin\api\model\PaymentTopupWalletResponse.class
 com\dipcoin\api\model\Head.class
 com\dipcoin\partner\recharge\comm\MDMRequest.class
 com\dipcoin\partner\recharge\comm\MDMRequestDetails$Fields.class
+com\dipcoin\api\model\ChargeBackList.class
 com\dipcoin\partner\recharge\comm\BillPaymentServiceRequest.class
 com\dipcoin\api\utils\RechargeServiceException.class
 com\dipcoin\partner\recharge\comm\BillComplaintStatusRequest$Fields.class
@@ -202,6 +203,7 @@ com\dipcoin\partner\recharge\comm\PartnerRequest.class
 com\dipcoin\metrics\UserMetricRegistry$UserType.class
 com\dipcoin\partner\recharge\comm\BillComplaintStatusRequest.class
 com\dipcoin\api\resource\InternalResource.class
+com\dipcoin\api\resource\ChargebackResource.class
 com\dipcoin\partner\recharge\client\RechargeClientFactory.class
 com\dipcoin\api\request\RequestHandler.class
 com\dipcoin\partner\recharge\services\RechargeServicesImpl.class

@@ -133,6 +133,7 @@ import com.dipcoin.db.services.commons.DBConstants.UserRoles;
 import com.dipcoin.db.services.commons.DBConstants.UserStatus;
 import com.dipcoin.db.services.commons.DBConstants.VinVrn;
 import com.dipcoin.db.services.commons.Utils;
+import com.dipcoin.db.services.dao.TollTagDao;
 import com.dipcoin.db.services.model.Bank;
 import com.dipcoin.db.services.model.BankBranchDetails;
 import com.dipcoin.db.services.model.BankTransaction;
@@ -192,6 +193,9 @@ public class TollBankResource {
 
 	@Autowired
 	private TollDBService tollDBService;
+
+	@Autowired
+	private TollTagDao tollTagDao;
 
 	@Autowired
 	private MerchantDBService merchantDBService;
@@ -906,6 +910,26 @@ public class TollBankResource {
 			response.addHeaderCode(HeaderCode.TOLL_TAG_DOESNT_EXIST);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
+
+		List<TollTag> tollTagsBySerialNumber = this.tollTagDao
+				.findTollTagsBySerialNumberOrderByIdDesc(updateReq.getSerialNumber());
+		if (CollectionUtils.isNotEmpty(tollTagsBySerialNumber)) {
+			for (TollTag tollTagBySerialNumber : tollTagsBySerialNumber) {
+				if (tollTagBySerialNumber != null && tollTagBySerialNumber.getId() != tollTag.getId()) {
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
+							.message("VALIDATION FAILED: Serial number already assigned to another tag")
+							.data("existingTollTagId", tollTagBySerialNumber.getId())
+							.data("existingTagStatus", tollTagBySerialNumber.getStatus())
+							.data("existingRegistrationNo", tollTagBySerialNumber.getRegistrationNo())
+							.data("serialNumber", updateReq.getSerialNumber())
+							.data("matchingTollTagCount", tollTagsBySerialNumber.size())
+							.data("errorCode", HeaderCode.TOLL_SERIAL_NUMBER_USED.code()).format());
+					removeLock(userProfileLock, serialNumberLock);
+					response.addHeaderCode(HeaderCode.TOLL_SERIAL_NUMBER_USED);
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+				}
+			}
+		}
 		
 		LOG.info(LogFormatter.instance(httpServletContext.getTraceId())
 				.message("TollTag found successfully")
@@ -1072,7 +1096,8 @@ public class TollBankResource {
 				.format());
 		
 		if (tollTag.getMiscCharges() != TagDeliveryType.HAND_DELIVERY.value()
-				&& epc.getStatus() == DBConstants.EpcStatus.USED.value()) {
+				&& (epc.getStatus() == DBConstants.EpcStatus.USED.value()
+						|| epc.getStatus() == DBConstants.EpcStatus.PENDING.value())) {
 			LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
 					.message("VALIDATION FAILED: EPC already used and not hand delivery")
 					.data("epcStatus", epc.getStatus())
@@ -1464,17 +1489,22 @@ public class TollBankResource {
 			if (this.tollDBService.updateTollTag(tollTagCloneCopy) == null) {
 				LOG.debug(
 						LogFormatter.instance(httpServletContext.getTraceId()).message("tollTag Not Updated").format());
+				removeLock(userProfileLock, serialNumberLock);
+				response.addHeaderCode(HeaderCode.INTERNAL_ERROR);
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
 			}
 
-//	        if (isTagIdBlank) {
-//	          epc.setStatus(DBConstants.EpcStatus.PENDING.value());
-//	          epc = this.tollDBService.saveEpc(epc);
-//	          if (epc == null) {
-//	            removeLock(userProfileLock, serialNumberLock);
-//	            LOG.error(LogFormatter.instance(httpServletContext.getTraceId())
-//	                .message("Epc Not Updated").format());
-//	          }
-//	        }
+			if (isTagIdBlank) {
+				epc.setStatus(DBConstants.EpcStatus.PENDING.value());
+				epc = this.tollDBService.saveEpc(epc);
+				if (epc == null) {
+					removeLock(userProfileLock, serialNumberLock);
+					LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Epc Not Updated").format());
+					response.addHeaderCode(HeaderCode.INTERNAL_ERROR);
+					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+				}
+			}
+			removeLock(userProfileLock, serialNumberLock);
 			return ResponseEntity.status(HttpStatus.OK).body(response);
 		}
 
@@ -1511,9 +1541,25 @@ public class TollBankResource {
 
 		tollTagCloneCopy.setSerialNumber(updateReq.getSerialNumber());
 
-		this.tollDBService.updateTollTag(tollTagCloneCopy);
+		TollTag tollTagResponse = this.tollDBService.updateTollTag(tollTagCloneCopy);
+		if (tollTagResponse == null) {
+			removeLock(userProfileLock, serialNumberLock);
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("tollTag Not Updated").format());
+			response.addHeaderCode(HeaderCode.INTERNAL_ERROR);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+		}
+
+		epc.setStatus(DBConstants.EpcStatus.USED.value());
+		epc = this.tollDBService.saveEpc(epc);
+		if (epc == null) {
+			removeLock(userProfileLock, serialNumberLock);
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Epc Not Updated").format());
+			response.addHeaderCode(HeaderCode.INTERNAL_ERROR);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+		}
 
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("NOT APPROVED").format());
+		removeLock(userProfileLock, serialNumberLock);
 
 		return ResponseEntity.status(HttpStatus.OK).body(response);
 
@@ -1807,7 +1853,13 @@ public class TollBankResource {
 		}
 		TollTagResponse response = new TollTagResponse();
 
-		TollTag tolltag = this.tollDBService.findTollTagBySerialNumber(serialNumber);
+		List<TollTag> tollTags = this.tollTagDao.findTollTagsBySerialNumberOrderByIdDesc(serialNumber);
+		if (CollectionUtils.isEmpty(tollTags)) {
+			LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("TollTag not found")
+					.data("serialNumber", serialNumber).format());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(HeaderCode.TOLL_TAG_DOESNT_EXIST));
+		}
+		TollTag tolltag = tollTags.get(NumberUtils.INTEGER_ZERO);
 
 		LOG.debug(LogFormatter.instance().data("tollTag", tolltag).format());
 
