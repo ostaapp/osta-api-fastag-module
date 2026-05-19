@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -521,15 +522,37 @@ public ResponseEntity registerTollCustomer(@RequestParam("RCImage") MultipartFil
     @RequestParam("idProof") MultipartFile idProof, @RequestParam("request") String request,
     @ApiParam(value = APIDoc.clientTransactionId, required = true) @QueryParam(
         value = APIConstants.CLIENT_TRANSACTION_ID) final String clientTransactionId,
-    @ApiParam(value = APIDoc.tokenNotes, required = true,
-        defaultValue = APIDoc.authorizationTokenDefaultValue) @HeaderParam(
-            value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
-    @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieParam(
-        value = APIConstants.DC_LOGIN_COOKIE) String dcl)
-    throws Exception, APIException {
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
+            throws Exception, APIException {
 
   return tollServiceBankResource.addAndUpdateTollCustomer(httpServletContext.getUser(), httpServletContext.getBank(), rcDoc,
       idProof, request, clientTransactionId);
+}
+
+@GetMapping("toll/minimumAmount")
+@ApiOperation(value = "Fetch the minimum amount", notes = "API to Fetch minimum amount.",
+    response = TollRechargeResponse.class)
+public ResponseEntity getMinimumAmount(
+    @ApiParam(value = "serialNo", required = true) @RequestParam(value = "serialNo",
+        required = true) final String serialNo,
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
+            throws Exception, APIException {
+
+  return tollServiceBankResource.getSummationOfMinimumAmount(httpServletContext.getUser(),
+      serialNo);
+}
+
+@DeleteMapping("tag/{ttid:.*}")
+@ApiOperation(value = "Toll Tag Deactivate Account", notes = "API to delete toll tag account.",
+    response = APIResponse.class)
+public ResponseEntity deactivateTollTag(
+    @ApiParam(value = "Toll Tag Id",
+        required = true) @PathVariable("ttid") final String encryptedTTID,
+    @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(value = org.springframework.http.HttpHeaders.AUTHORIZATION) String authorizationHeader)
+            throws Exception, APIException {
+
+  return tollServiceBankResource.deactivateTollTagByBank(httpServletContext.getUser(), encryptedTTID);
+
 }
 
 }
