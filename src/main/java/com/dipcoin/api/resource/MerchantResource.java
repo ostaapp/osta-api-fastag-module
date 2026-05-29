@@ -643,6 +643,50 @@ public class MerchantResource extends PartnerResource {
 			    return ResponseEntity.status(HttpStatus.NO_CONTENT)
 			        .body(APIResponse.error(HeaderCode.REQUEST_OK));
 			  }
+		 
+		 public ResponseEntity getMerchantDoc(final User user, final Merchant merchant, Integer docTypeId)
+			      throws IOException {
+			    if (docTypeId == null) {
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			          .body(APIResponse.error(HeaderCode.DOC_TYPE_NOT_FOUND));
+			    }
+			    // verify user is active and a merchant admin
+			    if ((!this.userDBService.isActive(user) || (!this.userDBService.isMerchantSuperAdmin(user)
+			        && !this.userDBService.isMerchantAdmin(user)))
+			        && (!this.userDBService.isActive(user) || (!this.userDBService.isBrontooSuperAdmin(user)
+			            && !this.userDBService.isBrontooAdmin(user)))) {
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			          .body(APIResponse.error(HeaderCode.USER_UNAUTHORIZED));
+			    }
+
+			    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			        .message("Fetch Doc for type " + docTypeId).format());
+
+			    List<Integer> docTypes = new LinkedList<>();
+			    docTypes.add(docTypeId);
+			    final List<MerchantDoc> docs =
+			        this.merchantDBService.getMerchantDocs(merchant.getId(), docTypes);
+			    if (CollectionUtils.isEmpty(docs)) {
+			      return ResponseEntity.status(HttpStatus.OK)
+			          .body(APIResponse.error(HeaderCode.FILE_DOESNT_EXIST));
+			    }
+
+			    MerchantDoc doc = docs.get(0);
+			    String filePath = doc.getDocumentPath();
+			    String fileName = doc.getDocumentPath().substring(doc.getDocumentPath().lastIndexOf("/") + 1);
+			    LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
+			        .message("Fetching file " + filePath).format());
+
+			    InputStream fileInputStream = null;
+			    fileInputStream = this.objectDataStore.get(filePath);
+
+			    if (fileInputStream == null)
+			      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			          .body(APIResponse.error(HeaderCode.FILE_DOESNT_EXIST));
+
+			    return APIUtils.generateMultiPartResponse(fileInputStream, fileName);
+			  }
+
 
 
 }

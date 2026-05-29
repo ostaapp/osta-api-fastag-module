@@ -280,6 +280,22 @@ public class MerchantRequestHandler extends RequestHandler {
         httpServletContext.getMerchant());
   }
   
+  @GetMapping("doc")
+  @ApiOperation(value = "Fetching Merchant Document uploaded",
+      notes = "API to fetch merchant uploaded doc. Admin User access only.")
+  public ResponseEntity getMerchantDoc(
+      @ApiParam(value = "Doc Type", required = true) @RequestParam(value = "docType",
+          required = false) Integer docType,
+      @ApiParam(value = APIDoc.tokenNotes, required = true,
+          defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(
+              value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+      @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(
+          value = APIConstants.DC_LOGIN_COOKIE) String apiDocPurposeOnly2)
+      throws IOException {
+
+    return merchantResource.getMerchantDoc(httpServletContext.getUser(),httpServletContext.getMerchant(), docType);
+  }
+  
 //  /*
 //   * submit merchant Setup/AMC fees
 //   */

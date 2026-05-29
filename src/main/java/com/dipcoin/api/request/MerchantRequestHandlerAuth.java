@@ -243,6 +243,20 @@ public class MerchantRequestHandlerAuth extends RequestHandler {
        documentType, documentId);
   }
   
+  @GetMapping("doc")
+  @ApiOperation(value = "Fetching Merchant Document uploaded",
+      notes = "API to fetch merchant uploaded doc. Admin User access only.")
+  public ResponseEntity getMerchantDoc(
+      @ApiParam(value = "Doc Type", required = true) @RequestParam(value = "docType",
+          required = false) Integer docType,
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIs...") 
+		@RequestHeader(value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+  throws Exception, APIException {
+
+    return merchantResource.getMerchantDoc(httpServletContext.getUser(),
+        httpServletContext.getMerchant(), docType);
+  }
+  
 //  /*
 //   * submit merchant Setup/AMC fees
 //   */
