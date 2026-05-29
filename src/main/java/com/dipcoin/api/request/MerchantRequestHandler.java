@@ -33,6 +33,7 @@ import com.dipcoin.api.commons.APIDoc;
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.filter.HttpServletContext;
 import com.dipcoin.api.model.APIResponse;
+import com.dipcoin.api.model.BankAccountResponse;
 //import com.dipcoin.api.model.BankDetailsResponse;
 //import com.dipcoin.api.model.BrontooConvenienceFeeResponse;
 //import com.dipcoin.api.model.ClientLoggingRequest;
@@ -42,6 +43,7 @@ import com.dipcoin.api.model.MerchantInfoResponse;
 //import com.dipcoin.api.model.MerchantReportsResponse;
 import com.dipcoin.api.model.PartnerPaymentRequest;
 import com.dipcoin.api.model.SettlementsResponse;
+import com.dipcoin.api.resource.BankAccountResource;
 //import com.dipcoin.api.model.SettlementsResponse;
 //import com.dipcoin.api.model.TransactionReportResponse;
 import com.dipcoin.api.resource.MerchantResource;
@@ -81,8 +83,9 @@ public class MerchantRequestHandler extends RequestHandler {
   @Lazy
   private HttpServletContext httpServletContext;
   
-//  @Autowired
-//  private MiscellaneousResource miscellaneousResource;
+  @Autowired
+  private BankAccountResource bankAccountResource;
+
   
 
   /*
@@ -102,6 +105,22 @@ public class MerchantRequestHandler extends RequestHandler {
 	  User user = httpServletContext.getUser();
 	  Merchant merchant = httpServletContext.getMerchant();
 	  return merchantResource.getMerchant(user, merchant);
+  }
+  
+  @GetMapping("accounts")
+  @ApiOperation(value = "Merchant Bank Accounts", notes = "API to get merchant bank accounts.",
+      response = BankAccountResponse.class, responseContainer = "List")
+  public ResponseEntity accounts(
+      @ApiParam(value = "Flag to filter accounts by status.",
+          required = false) @RequestParam(value = "status", required = false) Integer status,
+      @ApiParam(value = APIDoc.tokenNotes, required = true,
+          defaultValue = APIDoc.authorizationTokenDefaultValue) @RequestHeader(
+              value = HttpHeaders.AUTHORIZATION) String apiDocPurposeOnly1,
+      @ApiParam(value = APIDoc.dcCookieNotes, required = true) @CookieValue(
+          value = APIConstants.DC_LOGIN_COOKIE) String dcl)
+      throws APIException {
+    return bankAccountResource.getBankAccounts(httpServletContext.getUser(),
+        httpServletContext.getMerchant(), null, status);
   }
   
   @GetMapping("reports/aggregate")

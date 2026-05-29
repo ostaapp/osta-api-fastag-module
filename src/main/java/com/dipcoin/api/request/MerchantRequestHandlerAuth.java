@@ -18,10 +18,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.dipcoin.api.commons.APIException;
 import com.dipcoin.api.filter.HttpServletContext;
+import com.dipcoin.api.model.BankAccountResponse;
 import com.dipcoin.api.model.MerchantInfoResponse;
 import com.dipcoin.api.model.SettlementsResponse;
+import com.dipcoin.api.resource.BankAccountResource;
 import com.dipcoin.api.resource.MerchantResource;
 import com.dipcoin.api.resource.MerchantSettlementResource;
 import com.dipcoin.db.services.model.Merchant;
@@ -55,6 +58,9 @@ public class MerchantRequestHandlerAuth extends RequestHandler {
   @Autowired
   @Lazy
   private HttpServletContext httpServletContext;
+  
+  @Autowired
+  private BankAccountResource bankAccountResource;
   
 
   /*
@@ -101,6 +107,20 @@ public class MerchantRequestHandlerAuth extends RequestHandler {
 		  return merchantResource.getMerchantAmount(user, user.getBankMerchantId());
   }
   
+  @GetMapping("accounts")
+  @ApiOperation(value = "Merchant Bank Accounts", notes = "API to get merchant bank accounts.",
+      response = BankAccountResponse.class, responseContainer = "List")
+  public ResponseEntity accounts(
+      @ApiParam(value = "Flag to filter accounts by status.",
+          required = false) @RequestParam(value = "status", required = false) Integer status,
+      @ApiParam(value = "JWT Access Token - Format: Bearer {access_token}", required = true,
+          example = "Bearer eyJhbGciOiJIUzI1NiIs...") @RequestHeader(
+              value = HttpHeaders.AUTHORIZATION) String authorizationHeader)
+      throws APIException {
+    return bankAccountResource.getBankAccounts(httpServletContext.getUser(),
+        httpServletContext.getMerchant(), null, status);
+  }
+    
   /*
    * Settlement & Recon
    */

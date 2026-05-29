@@ -90,8 +90,10 @@ D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\ja
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\PaymentTopupWalletResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\partner\recharge\comm\BillInfoResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TollTransactionsReport.java
+D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\resource\BankAccountResource.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\request\TollCustomerRequestHandlerAuth.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\partner\recharge\comm\MDMCommonClass.java
+D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\BankAccountResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TagList.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\Time.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\request\MerchantRequestHandlerAuth.java
@@ -133,6 +135,7 @@ D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\ja
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\Meta.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TollTagRequest.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TollNetcAckRequest.java
+D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\BankAccountRequest.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\mock\bank\model\RemoveLienResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\model\TollTransactionsReportResponse.java
 D:\Alo\Alo STS Workspace\Osta Api BBPS module\osta-api-fastag-module\src\main\java\com\dipcoin\api\request\RequestHandler.java

@@ -89,6 +89,7 @@ com\dipcoin\api\model\Meta.class
 com\dipcoin\mock\bank\config\MockBankConfig.class
 com\dipcoin\api\model\VehicleDetails.class
 com\dipcoin\api\request\BankApplicationService.class
+com\dipcoin\api\model\BankAccountResponse.class
 com\dipcoin\partner\recharge\comm\PartnerResponse.class
 com\dipcoin\api\utils\RechargeConfigurations$1.class
 com\dipcoin\partner\recharge\comm\BillMerchantServiceDetails.class
@@ -102,6 +103,7 @@ com\dipcoin\api\resource\DipcoinBankHelper.class
 com\dipcoin\partner\recharge\comm\MDMCommonClass$ChannelDetails.class
 com\dipcoin\mock\bank\model\DeleteAccountRequest.class
 com\dipcoin\mock\bank\model\RemoveLienRequest.class
+com\dipcoin\api\model\BankAccountRequest.class
 com\dipcoin\api\utils\RechargeConstants$RechargeReconFileResponseCode.class
 com\dipcoin\bank\services\utils\VirtualBankProperties.class
 com\dipcoin\api\request\TollBankRequestHandler.class
@@ -316,6 +318,7 @@ com\dipcoin\amqp\RabbitMqConfiguration$ProdProfile.class
 com\dipcoin\api\model\PartnerRequest.class
 com\dipcoin\partner\recharge\comm\BillRegisterComplaintResponse.class
 com\dipcoin\api\commons\APIConstants$ReportType.class
+com\dipcoin\api\resource\BankAccountResource.class
 com\dipcoin\mock\bank\model\CustomerFundTransferRequest.class
 com\dipcoin\amqp\RabbitMqConfiguration.class
 com\dipcoin\bank\services\comm\DipcoinRequest.class
