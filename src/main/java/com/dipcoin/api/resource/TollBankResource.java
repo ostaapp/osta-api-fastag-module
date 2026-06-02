@@ -3543,6 +3543,10 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 			response.addHeaderCode(HeaderCode.TOLL_TAG_DOESNT_EXIST);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll tag fetched for bank update")
+				.data("tollTagId", tollTag.getId()).data("customerAccountId", tollTag.getCustomerAccountId())
+				.data("registrationNo", tollTag.getRegistrationNo()).data("approvalFlag", updateReq.getApprovalFlag())
+				.format());
 
 		TollRegistration tollRegistration = tollTag.getTollRegistration();
 
@@ -3566,6 +3570,9 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 					Arrays.asList(DBConstants.DipcoinUsageType.DEPOSIT.value(),
 							DBConstants.DipcoinUsageType.FEE.value(), DBConstants.DipcoinUsageType.TOLL.value()))
 					.get();
+			LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Dipcoins fetched for bank rejection")
+					.data("tollTagId", tollTag.getId()).data("customerAccountId", tollTag.getCustomerAccountId())
+					.data("dipcoinCount", dcoins == null ? NumberUtils.INTEGER_ZERO : dcoins.size()).format());
 			
 			if (CollectionUtils.isEmpty(dcoins)) {
 				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId())
@@ -3713,6 +3720,9 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 						createReq, false);
 
 			} else {
+				LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Step 19: Skipping new Dipcoin creation (conditions not met)")                                                          
+				.data("tollTagEnabled", tollTagEnabled).data("initialAmountAvailable", initialAmount != null)
+				.data("customerAccountAvailable", customerAccount != null).format()); 
 			}
 			
 			if (updateReq.getRejectReason() != null && StringUtils.isNotEmpty(updateReq.getRejectReason())) {
@@ -3740,6 +3750,8 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 						if (epc == null) {
 							LOG.error(LogFormatter.instance(httpServletContext.getTraceId()).message("Epc Not Updated").format());
 						} else {
+							LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("REJECT FLOW: EPC status changed to NOTUSED")
+						   .data("tagId", tollTag.getTagId()).data("epcId", epc.getId()).format());
 						}
 					}
 				}
@@ -3768,6 +3780,9 @@ public ResponseEntity getTagRechargeReport(User bankUser, Bank bank, Long startT
 			response.addHeaderCode(HeaderCode.TOLL_USER_DETAILS_CANNOT_UPDATE);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 		}
+		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Toll customer updated by bank")
+				.data("tollTagId", tollTagResponse.getId()).data("status", tollTagResponse.getStatus())
+				.data("approvalFlag", tollTagResponse.getApprovalFlag()).data("approvedBy", user.getId()).format());
 
 		LOG.debug(LogFormatter.instance(httpServletContext.getTraceId()).message("Get bank Account")
 				.data("bankId", tollTag.getWalletBankId()> NumberUtils.INTEGER_ZERO ? tollTag.getWalletBankId() : tollTag.getBankId()).format());
